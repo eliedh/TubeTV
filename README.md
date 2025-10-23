@@ -6,6 +6,17 @@ A cross-platform client for [TubeArchivist](https://www.tubearchivist.com/) - yo
 
 This is a lightweight SwiftUI app developed primarily using AI code generation to meet specific viewing needs across Apple devices. It's **not intended to be a feature-complete client** with all TubeArchivist capabilities, but rather a focused video browser optimized for both TV and mobile viewing experiences.
 
+## Screenshots
+
+### Apple TV
+![Apple TV Screenshot](TV.png)
+
+### iPad
+![iPad Screenshot](iPad.png)
+
+### iPhone
+![iPhone Screenshot](iPhone.png)
+
 ## Supported Platforms
 
 - **Apple TV (tvOS 13.0+)** - Optimized for big screen viewing with remote control
