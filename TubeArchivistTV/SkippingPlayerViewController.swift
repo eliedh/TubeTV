@@ -18,7 +18,39 @@ final class SkippingPlayerViewController: AVPlayerViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         setupCustomTransportBarItems()
+        setupiOSControls()
     }
+    
+    private func setupiOSControls() {
+        #if os(iOS)
+        // On iOS, we can add a double-tap gesture to cycle through speeds
+        let doubleTapGesture = UITapGestureRecognizer(target: self, action: #selector(handleDoubleTap))
+        doubleTapGesture.numberOfTapsRequired = 2
+        self.view.addGestureRecognizer(doubleTapGesture)
+        #endif
+    }
+    
+    #if os(iOS)
+    @objc private func handleDoubleTap() {
+        // Cycle to next speed
+        currentSpeedIndex = (currentSpeedIndex + 1) % playbackSpeeds.count
+        let newSpeed = playbackSpeeds[currentSpeedIndex]
+        player?.rate = newSpeed
+        
+        // Show a brief notification of the new speed
+        showSpeedNotification(speed: newSpeed)
+    }
+    
+    private func showSpeedNotification(speed: Float) {
+        let alertController = UIAlertController(title: "Playback Speed", message: "\(speed)×", preferredStyle: .alert)
+        present(alertController, animated: true)
+        
+        // Dismiss after 1 second
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+            alertController.dismiss(animated: true)
+        }
+    }
+    #endif
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
@@ -40,6 +72,7 @@ final class SkippingPlayerViewController: AVPlayerViewController {
     // MARK: - Custom Transport Bar Items
     
     private func setupCustomTransportBarItems() {
+        #if os(tvOS)
         if #available(tvOS 14.0, *) {
             // Create speed control menu
             let speedMenu = createSpeedMenu()
@@ -47,6 +80,7 @@ final class SkippingPlayerViewController: AVPlayerViewController {
             // Assign custom transport bar items
             self.transportBarCustomMenuItems = [speedMenu]
         }
+        #endif
     }
     
     private func createSpeedMenu() -> UIMenu {
@@ -79,10 +113,12 @@ final class SkippingPlayerViewController: AVPlayerViewController {
         player.rate = speed
         
         // Recreate the menu to update checkmarks
+        #if os(tvOS)
         if #available(tvOS 14.0, *) {
             let updatedMenu = createSpeedMenu()
             self.transportBarCustomMenuItems = [updatedMenu]
         }
+        #endif
         
         print("Playback speed changed to \(speed)×")
     }
@@ -158,6 +194,7 @@ final class SkippingPlayerViewController: AVPlayerViewController {
     // MARK: - Remote Control (Skip Forward/Backward)
 
     override func pressesEnded(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        #if os(tvOS)
         guard let press = presses.first else {
             super.pressesEnded(presses, with: event)
             return
@@ -171,6 +208,9 @@ final class SkippingPlayerViewController: AVPlayerViewController {
         default:
             super.pressesEnded(presses, with: event)
         }
+        #else
+        super.pressesEnded(presses, with: event)
+        #endif
     }
 
     private func skip(by seconds: Double) {

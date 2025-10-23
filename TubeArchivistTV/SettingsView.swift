@@ -122,12 +122,20 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("Settings")
-            .navigationBarItems(trailing: Button("Done") {
-                if settings.isConfigured {
-                    dismiss()
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        if settings.isConfigured {
+                            dismiss()
+                        }
+                    }
+                    .disabled(!settings.isConfigured)
                 }
-            }.disabled(!settings.isConfigured))
+            }
         }
+        #if os(iOS)
+        .navigationViewStyle(StackNavigationViewStyle())
+        #endif
     }
     
     // MARK: - Actions
