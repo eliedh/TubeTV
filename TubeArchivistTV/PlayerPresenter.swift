@@ -8,6 +8,7 @@
 import Foundation
 import AVKit
 import UIKit
+import AVFoundation
 
 enum PlayerPresenter {
     /// Presents a full-screen video player for the given video
@@ -21,6 +22,11 @@ enum PlayerPresenter {
             print("Unable to find top view controller")
             return
         }
+
+        // Configure audio session to play sound even when device is on silent
+        #if os(iOS)
+        configureAudioSession()
+        #endif
 
         let options = [
             "AVURLAssetHTTPHeaderFieldsKey": ["Authorization": "Token \(token)"]
@@ -58,4 +64,17 @@ enum PlayerPresenter {
         }
         return base
     }
+    
+    #if os(iOS)
+    /// Configures the audio session to allow playback even when device is on silent
+    private static func configureAudioSession() {
+        do {
+            let audioSession = AVAudioSession.sharedInstance()
+            try audioSession.setCategory(.playback, mode: .moviePlayback, options: [])
+            try audioSession.setActive(true)
+        } catch {
+            print("Failed to configure audio session: \(error.localizedDescription)")
+        }
+    }
+    #endif
 }
