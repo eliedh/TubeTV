@@ -44,6 +44,30 @@ enum PlayerPresenter {
 
         topVC.present(controller, animated: true)
     }
+    
+    /// Presents a full-screen video player for a locally stored video
+    static func presentLocal(url: URL) {
+        guard let topVC = topViewController() else {
+            print("Unable to find top view controller")
+            return
+        }
+
+        // Configure audio session to play sound even when device is on silent
+        #if os(iOS)
+        configureAudioSession()
+        #endif
+
+        let player = AVPlayer(url: url)
+
+        let controller = SkippingPlayerViewController()
+        controller.player = player
+        controller.showsPlaybackControls = true
+        controller.modalPresentationStyle = .fullScreen
+
+        player.play()
+
+        topVC.present(controller, animated: true)
+    }
 
     /// Finds the topmost view controller in the hierarchy
     private static func topViewController(base: UIViewController? = {

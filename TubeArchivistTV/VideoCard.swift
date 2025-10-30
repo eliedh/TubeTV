@@ -10,31 +10,53 @@ import SwiftUI
 struct VideoCard: View {
     let video: Video
     let isSelected: Bool
+    let showDownloadStatus: Bool
     let onTap: () -> Void
+    
+    @StateObject private var downloadManager = DownloadManager.shared
+    @State private var showDownloadOptions = false
+    
+    init(video: Video, isSelected: Bool, showDownloadStatus: Bool = false, onTap: @escaping () -> Void) {
+        self.video = video
+        self.isSelected = isSelected
+        self.showDownloadStatus = showDownloadStatus
+        self.onTap = onTap
+    }
     
     var body: some View {
         Button(action: onTap) {
             VStack(spacing: cardSpacing) {
                 // Thumbnail
-                AsyncImage(url: URL(string: video.derivedThumbnailURLString ?? "")) { phase in
-                    switch phase {
-                    case .empty:
-                        ProgressView()
-                            .frame(width: thumbnailSize.width, height: thumbnailSize.height)
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .scaledToFill()
-                    case .failure:
-                        Color.red
-                    @unknown default:
-                        Color.gray
+                ZStack(alignment: .bottomTrailing) {
+                    AsyncImage(url: URL(string: video.derivedThumbnailURLString ?? "")) { phase in
+                        switch phase {
+                        case .empty:
+                            ProgressView()
+                                .frame(width: thumbnailSize.width, height: thumbnailSize.height)
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .scaledToFill()
+                        case .failure:
+                            Color.red
+                        @unknown default:
+                            Color.gray
+                        }
                     }
+                    .frame(width: thumbnailSize.width, height: thumbnailSize.height)
+                    .cornerRadius(cornerRadius)
+                    .shadow(radius: 5)
+                    .opacity(video.watched ? 0.5 : 1.0)
+                    
+                    // Download status indicators (iOS only)
+                    #if os(iOS)
+                    if showDownloadStatus || downloadManager.isDownloaded(videoID: video.youtubeID ?? "") {
+                        downloadStatusBadge
+                    } else if let progress = downloadManager.downloadProgress[video.youtubeID ?? ""] {
+                        downloadProgressView(progress: progress)
+                    }
+                    #endif
                 }
-                .frame(width: thumbnailSize.width, height: thumbnailSize.height)
-                .cornerRadius(cornerRadius)
-                .shadow(radius: 5)
-                .opacity(video.watched ? 0.5 : 1.0)
                 
                 // Title
                 Text(video.title)
@@ -50,7 +72,63 @@ struct VideoCard: View {
             .shadow(color: shadowColor, radius: shadowRadius)
         }
         .buttonStyle(.plain)
+        #if os(iOS)
+        .contextMenu {
+            downloadContextMenu
+        }
+        #endif
     }
+    
+    // MARK: - iOS Download UI Components
+    
+    #if os(iOS)
+    @ViewBuilder
+    private var downloadStatusBadge: some View {
+        Image(systemName: "arrow.down.circle.fill")
+            .font(.title2)
+            .foregroundColor(.green)
+            .background(Circle().fill(Color.black.opacity(0.7)).padding(-4))
+            .padding(8)
+    }
+    
+    @ViewBuilder
+    private func downloadProgressView(progress: Double) -> some View {
+        ZStack {
+            Circle()
+                .fill(Color.black.opacity(0.7))
+                .frame(width: 44, height: 44)
+            
+            CircularProgressView(progress: progress)
+                .frame(width: 36, height: 36)
+        }
+        .padding(8)
+    }
+    
+    @ViewBuilder
+    private var downloadContextMenu: some View {
+        if let videoID = video.youtubeID {
+            if downloadManager.isDownloaded(videoID: videoID) {
+                Button(role: .destructive) {
+                    downloadManager.deleteVideo(videoID: videoID)
+                } label: {
+                    Label("Delete Download", systemImage: "trash")
+                }
+            } else if downloadManager.activeDownloads.contains(videoID) {
+                Button(role: .destructive) {
+                    downloadManager.cancelDownload(videoID: videoID)
+                } label: {
+                    Label("Cancel Download", systemImage: "xmark.circle")
+                }
+            } else {
+                Button {
+                    downloadManager.downloadVideo(video)
+                } label: {
+                    Label("Download for Offline", systemImage: "arrow.down.circle")
+                }
+            }
+        }
+    }
+    #endif
     
     // MARK: - Platform-specific properties
     
@@ -154,3 +232,28 @@ struct VideoCard: View {
         isSelected ? Color.blue.opacity(0.5) : Color.black.opacity(0.5)
     }
 }
+
+// MARK: - Circular Progress View
+
+#if os(iOS)
+struct CircularProgressView: View {
+    let progress: Double
+    
+    var body: some View {
+        ZStack {
+            Circle()
+                .stroke(Color.gray.opacity(0.3), lineWidth: 3)
+            
+            Circle()
+                .trim(from: 0, to: progress)
+                .stroke(Color.blue, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+                .animation(.linear, value: progress)
+            
+            Text("\(Int(progress * 100))%")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundColor(.white)
+        }
+    }
+}
+#endif
