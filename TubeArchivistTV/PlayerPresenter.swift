@@ -36,6 +36,10 @@ enum PlayerPresenter {
         let player = AVPlayer(playerItem: item)
 
         let controller = SkippingPlayerViewController()
+        controller.nowPlayingTitle = video.title
+        if let thumb = video.derivedThumbnailURLString, let url = URL(string: thumb) {
+            controller.nowPlayingArtworkURL = url
+        }
         controller.player = player
         controller.showsPlaybackControls = true
         controller.modalPresentationStyle = .fullScreen
@@ -46,7 +50,7 @@ enum PlayerPresenter {
     }
     
     /// Presents a full-screen video player for a locally stored video
-    static func presentLocal(url: URL) {
+    static func presentLocal(video: Video, url: URL) {
         guard let topVC = topViewController() else {
             print("Unable to find top view controller")
             return
@@ -60,6 +64,10 @@ enum PlayerPresenter {
         let player = AVPlayer(url: url)
 
         let controller = SkippingPlayerViewController()
+        controller.nowPlayingTitle = video.title
+        if let thumb = video.derivedThumbnailURLString, let artURL = URL(string: thumb) {
+            controller.nowPlayingArtworkURL = artURL
+        }
         controller.player = player
         controller.showsPlaybackControls = true
         controller.modalPresentationStyle = .fullScreen
@@ -94,7 +102,7 @@ enum PlayerPresenter {
     private static func configureAudioSession() {
         do {
             let audioSession = AVAudioSession.sharedInstance()
-            try audioSession.setCategory(.playback, mode: .moviePlayback, options: [])
+            try audioSession.setCategory(.playback, mode: .moviePlayback, options: [.allowAirPlay, .allowBluetooth])
             try audioSession.setActive(true)
         } catch {
             print("Failed to configure audio session: \(error.localizedDescription)")

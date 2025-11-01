@@ -58,6 +58,14 @@ This is a lightweight SwiftUI app developed primarily using AI code generation t
 - **Storage location**: Saved under app Cache at `Caches/VideoDownloads/` (persists across launches; iOS may purge cache under storage pressure)
 - **Network**: Downloads allowed on both Wi‑Fi and cellular
 
+### Podcast Mode (Background Audio, iPhone & iPad)
+- **Keep listening with the screen locked** or when you switch apps
+- **Lock Screen & Control Center controls**: Play/Pause and Skip ±10s
+- **Now Playing metadata**: title, artwork (YouTube thumbnail), duration, and live progress
+- **Works for both streaming and downloads**
+- **AirPlay & Bluetooth** supported
+- Note: tvOS remains unchanged (no background audio on Apple TV)
+
 ### Platform-Specific Features
 
 #### Apple TV
@@ -73,6 +81,7 @@ This is a lightweight SwiftUI app developed primarily using AI code generation t
 - **Native iPad app icons** and proper interface scaling
 - **Landscape and portrait** orientation support
  - **Offline downloads** via long-press with progress and management
+ - **Background audio** with Lock Screen controls and metadata
 
 #### iPhone
 - **Touch-optimized controls** with compact layout
@@ -80,6 +89,7 @@ This is a lightweight SwiftUI app developed primarily using AI code generation t
 - **Smaller thumbnails** optimized for mobile screens
 - **Portrait and landscape** orientation support
  - **Offline downloads** via long-press with progress and management
+ - **Background audio** with Lock Screen controls and metadata
 
 ## Setup
 

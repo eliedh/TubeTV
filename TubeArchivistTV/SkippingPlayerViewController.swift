@@ -5,11 +5,19 @@
 
 import AVKit
 import UIKit
+import MediaPlayer
 
 final class SkippingPlayerViewController: AVPlayerViewController {
     private var timeControlStatusObservation: NSKeyValueObservation?
     private var timeObserverToken: Any?
     private var didTriggerWatched: Bool = false
+    private var interruptionObserver: NSObjectProtocol?
+    private var routeChangeObserver: NSObjectProtocol?
+    
+    // Now Playing
+    private var nowPlayingManager: NowPlayingManager?
+    var nowPlayingTitle: String?
+    var nowPlayingArtworkURL: URL?
     
     // Playback speed settings
     private var currentSpeedIndex: Int = 2 // Default to 1.0x
@@ -56,6 +64,8 @@ final class SkippingPlayerViewController: AVPlayerViewController {
         super.viewDidAppear(animated)
         observePlaybackForIdleTimer()
         observeFivePercentRemaining()
+        setupNowPlaying()
+        observeAudioSessionNotifications()
     }
 
     override func viewWillDisappear(_ animated: Bool) {
@@ -67,6 +77,9 @@ final class SkippingPlayerViewController: AVPlayerViewController {
             player.removeTimeObserver(token)
             timeObserverToken = nil
         }
+        nowPlayingManager?.stop()
+        nowPlayingManager = nil
+        removeAudioSessionNotifications()
     }
     
     // MARK: - Custom Transport Bar Items
@@ -141,6 +154,10 @@ final class SkippingPlayerViewController: AVPlayerViewController {
                 self.didTriggerWatched = true
                 self.markWatched()
             }
+            // Update Now Playing elapsed time
+            self.nowPlayingManager?.updateElapsedTime(currentTime: current,
+                                                      duration: duration,
+                                                      rate: self.player?.rate ?? 0)
         }
     }
 
@@ -221,5 +238,71 @@ final class SkippingPlayerViewController: AVPlayerViewController {
         // Use 1 as timescale for simplicity since we're dealing with seconds
         let time = CMTime(seconds: newTime, preferredTimescale: 1)
         player.seek(to: time, toleranceBefore: .zero, toleranceAfter: .zero)
+    }
+
+    // MARK: - Now Playing & Remote Commands
+    private func setupNowPlaying() {
+        guard let player = player else { return }
+        let duration = player.currentItem?.asset.duration.seconds
+        nowPlayingManager = NowPlayingManager(
+            player: player,
+            onPlay: { [weak self] in self?.player?.play() },
+            onPause: { [weak self] in self?.player?.pause() },
+            onToggle: { [weak self] in
+                guard let self = self else { return }
+                if self.player?.rate == 0 { self.player?.play() } else { self.player?.pause() }
+            },
+            onSkipForward: { [weak self] in self?.skip(by: 10) },
+            onSkipBackward: { [weak self] in self?.skip(by: -10) }
+        )
+        nowPlayingManager?.start(title: nowPlayingTitle ?? "",
+                                 artworkURL: nowPlayingArtworkURL,
+                                 duration: duration)
+    }
+
+    private func observeAudioSessionNotifications() {
+        let center = NotificationCenter.default
+        interruptionObserver = center.addObserver(forName: AVAudioSession.interruptionNotification, object: nil, queue: .main) { [weak self] note in
+            self?.handleAudioInterruption(note: note)
+        }
+        routeChangeObserver = center.addObserver(forName: AVAudioSession.routeChangeNotification, object: nil, queue: .main) { [weak self] note in
+            self?.handleRouteChange(note: note)
+        }
+    }
+    
+    private func removeAudioSessionNotifications() {
+        let center = NotificationCenter.default
+        if let obs = interruptionObserver { center.removeObserver(obs) }
+        if let obs = routeChangeObserver { center.removeObserver(obs) }
+        interruptionObserver = nil
+        routeChangeObserver = nil
+    }
+    
+    private func handleAudioInterruption(note: Notification) {
+        guard let info = note.userInfo,
+              let typeValue = info[AVAudioSessionInterruptionTypeKey] as? UInt,
+              let type = AVAudioSession.InterruptionType(rawValue: typeValue) else { return }
+        switch type {
+        case .began:
+            player?.pause()
+        case .ended:
+            let optionsValue = info[AVAudioSessionInterruptionOptionKey] as? UInt
+            let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue ?? 0)
+            if options.contains(.shouldResume) {
+                player?.play()
+            }
+        @unknown default:
+            break
+        }
+    }
+    
+    private func handleRouteChange(note: Notification) {
+        guard let info = note.userInfo,
+              let reasonValue = info[AVAudioSessionRouteChangeReasonKey] as? UInt,
+              let reason = AVAudioSession.RouteChangeReason(rawValue: reasonValue) else { return }
+        if reason == .oldDeviceUnavailable {
+            // e.g., headphones unplugged
+            player?.pause()
+        }
     }
 }

@@ -110,7 +110,7 @@ struct DownloadsView: View {
         // Play from local storage if downloaded
         if let videoID = video.youtubeID,
            let localURL = downloadManager.localURL(for: videoID) {
-            PlayerPresenter.presentLocal(url: localURL)
+            PlayerPresenter.presentLocal(video: video, url: localURL)
             selectedVideoID = videoID
         } else {
             // Fallback to streaming if somehow the file is missing
