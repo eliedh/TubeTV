@@ -49,6 +49,15 @@ This is a lightweight SwiftUI app developed primarily using AI code generation t
 - **Skip controls** (Apple TV only) - Left/Right arrows to skip 10 seconds
 - **Auto-mark as watched** - automatically updates when 10% or 30 seconds remain (whichever is longer)
 
+### Offline Downloads (iPhone & iPad)
+- **Long-press to download** any video for offline viewing
+- **Background downloads** with on-card progress indicator and percentage
+- **Downloads tab** shows only videos available offline
+- **Local playback** from device storage with automatic fallback to streaming if the file is missing
+- **Manage downloads** via long-press: Cancel active downloads or Delete completed ones
+- **Storage location**: Saved under app Cache at `Caches/VideoDownloads/` (persists across launches; iOS may purge cache under storage pressure)
+- **Network**: Downloads allowed on both Wi‑Fi and cellular
+
 ### Platform-Specific Features
 
 #### Apple TV
@@ -63,13 +72,14 @@ This is a lightweight SwiftUI app developed primarily using AI code generation t
 - **Medium-sized thumbnails** (240×135) perfect for tablet viewing
 - **Native iPad app icons** and proper interface scaling
 - **Landscape and portrait** orientation support
+ - **Offline downloads** via long-press with progress and management
 
-#### iPhone/iPad
 #### iPhone
 - **Touch-optimized controls** with compact layout
 - **Swipe gestures** and touch interactions
 - **Smaller thumbnails** optimized for mobile screens
 - **Portrait and landscape** orientation support
+ - **Offline downloads** via long-press with progress and management
 
 ## Setup
 
@@ -107,7 +117,7 @@ Add your custom app icon images to `Assets.xcassets/AppIcon.appiconset/` followi
 This app was built to solve specific use cases and may not include features you'd expect from a full-featured client:
 - No search functionality (yet)
 - No channel/playlist browsing
-- No download management
+- Basic download management only (no bulk actions, scheduling, or queue reordering)
 - Limited error handling UI
 
 Feel free to fork and extend it for your own needs!
