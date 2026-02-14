@@ -36,10 +36,11 @@ This is a lightweight SwiftUI app developed primarily using AI code generation t
 - **Sort toggle**: Easily switch between sorting by download date (newest downloads first) or published date
 - **Adaptive grid layout** - 3 columns on Apple TV and iPad, 2 columns on iPhone
 - **Video thumbnails** with titles (always from YouTube CDN)
-- **Watched status indicators** - dimmed thumbnails for watched videos
+- **Watched status indicators** - dimmed thumbnails for watched videos with overlay effects
 - **Unwatched filter** - toggle to show only unwatched content
 - **Pagination** - load more videos as you scroll through your archive
-- **Refresh** - manually reload the video list
+- **Pull-to-refresh** (iPhone & iPad) - native gesture to reload the video list
+- **Refresh button** (tvOS & iPad) - alternate refresh control
 
 ### Video Playback
 - **Full-screen playback** with native player controls
@@ -80,16 +81,20 @@ This is a lightweight SwiftUI app developed primarily using AI code generation t
 - **Medium-sized thumbnails** (240×135) perfect for tablet viewing
 - **Native iPad app icons** and proper interface scaling
 - **Landscape and portrait** orientation support
- - **Offline downloads** via long-press with progress and management
- - **Background audio** with Lock Screen controls and metadata
+- **Pull-to-refresh** native gesture for easy reloading
+- **Enhanced card design** with modern shadows and visual polish
+- **Offline downloads** via long-press with progress and management
+- **Background audio** with Lock Screen controls and metadata
 
 #### iPhone
-- **Touch-optimized controls** with compact layout
+- **Touch-optimized controls** with compact two-row layout for better usability
+- **Pull-to-refresh** native gesture replaces button for streamlined interface
 - **Swipe gestures** and touch interactions
 - **Smaller thumbnails** optimized for mobile screens
 - **Portrait and landscape** orientation support
- - **Offline downloads** via long-press with progress and management
- - **Background audio** with Lock Screen controls and metadata
+- **Enhanced card design** with modern shadows and visual polish
+- **Offline downloads** via long-press with progress and management
+- **Background audio** with Lock Screen controls and metadata
 
 ## Setup
 
