@@ -45,8 +45,11 @@ struct VideoCard: View {
                     }
                     .frame(width: thumbnailSize.width, height: thumbnailSize.height)
                     .cornerRadius(cornerRadius)
-                    .shadow(radius: 5)
-                    .opacity(video.watched ? 0.5 : 1.0)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: cornerRadius)
+                            .fill(Color.black.opacity(video.watched ? 0.4 : 0.15))
+                    )
+                    .shadow(color: Color.black.opacity(0.4), radius: shadowRadius, x: 0, y: 2)
                     
                     // Download status indicators (iOS only)
                     #if os(iOS)
@@ -60,16 +63,20 @@ struct VideoCard: View {
                 
                 // Title
                 Text(video.title)
-                    .font(titleFont)
+                    .font(titleFont.weight(.semibold))
                     .foregroundColor(.white)
                     .multilineTextAlignment(.center)
                     .lineLimit(titleLineLimit)
                     .frame(maxWidth: thumbnailSize.width)
+                    .padding(.horizontal, 4)
             }
+            .frame(maxWidth: .infinity)
             .padding(cardPadding)
-            .background(backgroundColor)
-            .cornerRadius(cornerRadius)
-            .shadow(color: shadowColor, radius: shadowRadius)
+            .background(
+                RoundedRectangle(cornerRadius: cornerRadius)
+                    .fill(backgroundColor)
+                    .shadow(color: shadowColor, radius: shadowRadius, x: 0, y: 3)
+            )
         }
         .buttonStyle(.plain)
         #if os(iOS)
@@ -84,11 +91,15 @@ struct VideoCard: View {
     #if os(iOS)
     @ViewBuilder
     private var downloadStatusBadge: some View {
-        Image(systemName: "arrow.down.circle.fill")
-            .font(.title2)
-            .foregroundColor(.green)
-            .background(Circle().fill(Color.black.opacity(0.7)).padding(-4))
-            .padding(8)
+        ZStack {
+            Circle()
+                .fill(Color.green.opacity(0.9))
+            Image(systemName: "arrow.down.fill")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundColor(.white)
+        }
+        .frame(width: 32, height: 32)
+        .padding(6)
     }
     
     @ViewBuilder
@@ -219,6 +230,7 @@ struct VideoCard: View {
     }
     
     private var backgroundColor: Color {
+        #if os(tvOS)
         if isSelected {
             return .blue
         } else if video.watched {
@@ -226,6 +238,16 @@ struct VideoCard: View {
         } else {
             return Color(.darkGray)
         }
+        #else
+        // iOS/iPadOS: More refined color scheme
+        if isSelected {
+            return Color(red: 0.0, green: 0.48, blue: 1.0)
+        } else if video.watched {
+            return Color(red: 0.2, green: 0.15, blue: 0.15)
+        } else {
+            return Color(red: 0.15, green: 0.15, blue: 0.15)
+        }
+        #endif
     }
     
     private var shadowColor: Color {

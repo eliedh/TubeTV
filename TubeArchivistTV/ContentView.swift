@@ -46,6 +46,13 @@ struct ContentView: View {
                 .padding()
             }
             .background(Color.black.edgesIgnoringSafeArea(.all))
+            #if os(iOS)
+            .refreshable {
+                // Simulate async operation for refresh
+                try? await Task.sleep(nanoseconds: 100_000_000)  // 0.1 second delay to ensure UI updates
+                api.fetchVideos(unwatchedOnly: showUnwatchedOnly, sortByDownloaded: sortByDownloaded)
+            }
+            #endif
             .onAppear { api.fetchVideos(unwatchedOnly: showUnwatchedOnly, sortByDownloaded: sortByDownloaded) }
             .navigationTitle("TubeTV")
             .toolbar {
@@ -153,35 +160,28 @@ struct ContentView: View {
                 }
             }
         } else {
-            // iPhone: Vertical compact layout
+            // iPhone: Optimized touch-friendly layout
             VStack(spacing: 12) {
-                HStack(spacing: 16) {
+                // First row: Unwatched filter with refresh button
+                HStack(spacing: 12) {
                     Toggle(isOn: $showUnwatchedOnly) {
-                        Text("Unwatched Only")
+                        Text("Unwatched")
                             .font(.subheadline)
+                            .fontWeight(.medium)
                             .foregroundColor(.white)
                     }
                     .toggleStyle(SwitchToggleStyle(tint: .blue))
                     .onChange(of: showUnwatchedOnly) {
                         api.fetchVideos(unwatchedOnly: showUnwatchedOnly, sortByDownloaded: sortByDownloaded)
                     }
-                    
-                    Spacer()
-                    
-                    Button(action: { api.fetchVideos(unwatchedOnly: showUnwatchedOnly, sortByDownloaded: sortByDownloaded) }) {
-                        Image(systemName: "arrow.clockwise")
-                            .font(.title3)
-                            .foregroundColor(.white)
-                            .padding(8)
-                            .background(Color.blue)
-                            .clipShape(Circle())
-                    }
                 }
                 
+                // Second row: Sort toggle (full width)
                 HStack {
                     Toggle(isOn: $sortByDownloaded) {
-                        Text(sortByDownloaded ? "Sort: Downloaded" : "Sort: Published")
+                        Text(sortByDownloaded ? "Sorted: New Downloads" : "Sorted: Published")
                             .font(.subheadline)
+                            .fontWeight(.medium)
                             .foregroundColor(.white)
                     }
                     .toggleStyle(SwitchToggleStyle(tint: .blue))
@@ -192,6 +192,12 @@ struct ContentView: View {
                     Spacer()
                 }
             }
+            .padding(14)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color(red: 0.1, green: 0.1, blue: 0.1))
+                    .shadow(color: Color.black.opacity(0.3), radius: 4, x: 0, y: 2)
+            )
         }
         #endif
     }
@@ -229,10 +235,13 @@ struct ContentView: View {
                     .font(.headline)
             }
             .foregroundColor(.white)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            .background(Color.gray)
-            .cornerRadius(10)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 12)
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(Color(red: 0.3, green: 0.3, blue: 0.3))
+            )
+            .shadow(color: Color.black.opacity(0.3), radius: 4, x: 0, y: 2)
         }
         .padding(.bottom, 30)
     }
