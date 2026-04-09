@@ -114,7 +114,7 @@ struct DownloadsView: View {
             selectedVideoID = videoID
         } else {
             // Fallback to streaming if somehow the file is missing
-            PlayerPresenter.present(video: video, token: Configuration.apiToken)
+            PlayerPresenter.present(video: video)
             selectedVideoID = video.youtubeID ?? video.id
         }
     }

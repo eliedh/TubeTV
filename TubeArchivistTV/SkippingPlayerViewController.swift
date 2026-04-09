@@ -9,15 +9,20 @@ import MediaPlayer
 
 final class SkippingPlayerViewController: AVPlayerViewController {
     private var timeControlStatusObservation: NSKeyValueObservation?
+    private var itemStatusObservation: NSKeyValueObservation?
     private var timeObserverToken: Any?
     private var didTriggerWatched: Bool = false
     private var interruptionObserver: NSObjectProtocol?
     private var routeChangeObserver: NSObjectProtocol?
+    private var lastSyncedProgressPosition: Double = 0
+    private var hasAppliedInitialPosition = false
     
     // Now Playing
     private var nowPlayingManager: NowPlayingManager?
     var nowPlayingTitle: String?
     var nowPlayingArtworkURL: URL?
+    var watchedVideoID: String?
+    var initialPlaybackPosition: Double?
     
     // Playback speed settings
     private var currentSpeedIndex: Int = 2 // Default to 1.0x
@@ -62,6 +67,7 @@ final class SkippingPlayerViewController: AVPlayerViewController {
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
+        applyInitialPlaybackPositionIfNeeded()
         observePlaybackForIdleTimer()
         observeFivePercentRemaining()
         setupNowPlaying()
@@ -71,8 +77,11 @@ final class SkippingPlayerViewController: AVPlayerViewController {
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
         UIApplication.shared.isIdleTimerDisabled = false
+        syncProgress(force: true)
         timeControlStatusObservation?.invalidate()
         timeControlStatusObservation = nil
+        itemStatusObservation?.invalidate()
+        itemStatusObservation = nil
         if let token = timeObserverToken, let player = player {
             player.removeTimeObserver(token)
             timeObserverToken = nil
@@ -147,6 +156,7 @@ final class SkippingPlayerViewController: AVPlayerViewController {
             let duration = item.duration.seconds
             let current = currentTime.seconds
             guard duration.isFinite, duration > 0 else { return }
+            self.syncProgressIfNeeded(current: current, duration: duration)
             let remaining = duration - current
             let tenPercent = duration * 0.10
             let threshold = max(tenPercent, 30.0)
@@ -162,28 +172,63 @@ final class SkippingPlayerViewController: AVPlayerViewController {
     }
 
     private func markWatched() {
-        // Extract the video ID from the URL filename
-        guard let url = (player?.currentItem?.asset as? AVURLAsset)?.url else { return }
-        let filename = url.lastPathComponent
-        let id = filename.components(separatedBy: ".").first ?? filename
-        
-        let payload: [String: Any] = ["id": id, "is_watched": true]
-        guard let jsonData = try? JSONSerialization.data(withJSONObject: payload) else { return }
-        guard let endpoint = URL(string: Configuration.watchedEndpoint) else { return }
+        guard let watchedVideoID else { return }
 
-        var request = URLRequest(url: endpoint)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Token \(Configuration.apiToken)", forHTTPHeaderField: "Authorization")
-        request.httpBody = jsonData
+        Task {
+            await WatchedStateSync.shared.enqueue(videoID: watchedVideoID)
+        }
+    }
 
-        URLSession.shared.dataTask(with: request) { data, response, error in
-            if let error = error {
-                print("Error posting watched status: \(error.localizedDescription)")
-            } else if let httpResponse = response as? HTTPURLResponse {
-                print("Watched status updated successfully (HTTP \(httpResponse.statusCode))")
+    private func applyInitialPlaybackPositionIfNeeded() {
+        guard !hasAppliedInitialPosition,
+              let player,
+              let item = player.currentItem else { return }
+
+        itemStatusObservation?.invalidate()
+        itemStatusObservation = item.observe(\.status, options: [.initial, .new]) { [weak self] item, _ in
+            guard let self, item.status == .readyToPlay else { return }
+            self.seekToInitialPlaybackPosition()
+        }
+    }
+
+    private func seekToInitialPlaybackPosition() {
+        guard !hasAppliedInitialPosition,
+              let player,
+              let initialPlaybackPosition,
+              initialPlaybackPosition > 5,
+              initialPlaybackPosition.isFinite else {
+            hasAppliedInitialPosition = true
+            return
+        }
+
+        hasAppliedInitialPosition = true
+        lastSyncedProgressPosition = initialPlaybackPosition
+        let targetTime = CMTime(seconds: initialPlaybackPosition, preferredTimescale: 600)
+        player.seek(to: targetTime, toleranceBefore: .zero, toleranceAfter: .zero)
+    }
+
+    private func syncProgressIfNeeded(current: Double, duration: Double) {
+        guard current.isFinite, duration.isFinite, current > 5 else { return }
+        guard current - lastSyncedProgressPosition >= 15 else { return }
+        syncProgress(force: false, current: current)
+    }
+
+    private func syncProgress(force: Bool, current: Double? = nil) {
+        guard let watchedVideoID, !didTriggerWatched else { return }
+        guard let player else { return }
+
+        let currentPosition = current ?? player.currentTime().seconds
+        guard currentPosition.isFinite, currentPosition > 5 else { return }
+        guard force || currentPosition - lastSyncedProgressPosition >= 5 else { return }
+
+        lastSyncedProgressPosition = currentPosition
+
+        Task {
+            let response = await VideoProgressSync.shared.enqueue(videoID: watchedVideoID, position: currentPosition)
+            if response?.watched == true {
+                didTriggerWatched = true
             }
-        }.resume()
+        }
     }
     
     // MARK: - Idle Timer & Playback Observation
@@ -194,12 +239,17 @@ final class SkippingPlayerViewController: AVPlayerViewController {
             DispatchQueue.main.async {
                 UIApplication.shared.isIdleTimerDisabled = (player.timeControlStatus == .playing)
             }
+
+            if player.timeControlStatus != .playing {
+                self.syncProgress(force: true)
+            }
         }
         NotificationCenter.default.addObserver(self, selector: #selector(didFinishPlaying), name: .AVPlayerItemDidPlayToEndTime, object: player.currentItem)
     }
 
     @objc private func didFinishPlaying() {
         UIApplication.shared.isIdleTimerDisabled = false
+        syncProgress(force: true)
         // Dismiss the player and return to ContentView
         if let presentingVC = self.presentingViewController {
             presentingVC.dismiss(animated: true)
@@ -284,6 +334,7 @@ final class SkippingPlayerViewController: AVPlayerViewController {
               let type = AVAudioSession.InterruptionType(rawValue: typeValue) else { return }
         switch type {
         case .began:
+            syncProgress(force: true)
             player?.pause()
         case .ended:
             let optionsValue = info[AVAudioSessionInterruptionOptionKey] as? UInt
@@ -302,6 +353,7 @@ final class SkippingPlayerViewController: AVPlayerViewController {
               let reason = AVAudioSession.RouteChangeReason(rawValue: reasonValue) else { return }
         if reason == .oldDeviceUnavailable {
             // e.g., headphones unplugged
+            syncProgress(force: true)
             player?.pause()
         }
     }

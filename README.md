@@ -34,9 +34,14 @@ This is a lightweight SwiftUI app developed primarily using AI code generation t
 ### Video Browsing
 - **Retrieves all videos** from your TubeArchivist server
 - **Sort toggle**: Easily switch between sorting by download date (newest downloads first) or published date
+- **Continue Watching filter** - Toggle to show only videos you've started watching, sorted by progress
 - **Adaptive grid layout** - 3 columns on Apple TV and iPad, 2 columns on iPhone
 - **Video thumbnails** with titles (always from YouTube CDN)
 - **Watched status indicators** - dimmed thumbnails for watched videos with overlay effects
+- **Progress indicators** on in-progress videos:
+  - **Progress bar**: Visual blue progress bar at bottom of thumbnail showing watch percentage
+  - **Resume badge**: Orange play icon appears on videos you've partially watched
+  - **Highlighted cards**: In-progress videos have a warmer background color for easy identification
 - **Unwatched filter** - toggle to show only unwatched content
 - **Pagination** - load more videos as you scroll through your archive
 - **Pull-to-refresh** (iPhone & iPad) - native gesture to reload the video list
@@ -44,11 +49,14 @@ This is a lightweight SwiftUI app developed primarily using AI code generation t
 
 ### Video Playback
 - **Full-screen playback** with native player controls
+- **Automatic resume** - Videos resume from your last watched position automatically
+- **Background progress sync** - Playback position syncs to server every 15 seconds during playback
 - **Playback speed control**:
   - **Apple TV**: Menu-based speed selection (0.5×, 0.75×, 1.0×, 1.25×, 1.5×, 2.0×)
   - **iPhone/iPad**: Double-tap to cycle through speeds with visual feedback
 - **Skip controls** (Apple TV only) - Left/Right arrows to skip 10 seconds
 - **Auto-mark as watched** - automatically updates when 10% or 30 seconds remain (whichever is longer)
+- **Reliable sync**: Watched status and progress updates retry automatically if network fails
 
 ### Offline Downloads (iPhone & iPad)
 - **Long-press to download** any video for offline viewing
@@ -127,13 +135,24 @@ The app includes optimized icons for all platforms:
 
 Add your custom app icon images to `Assets.xcassets/AppIcon.appiconset/` following the naming convention in `Contents.json`.
 
+## Reliability & Architecture
+
+This app prioritizes reliability through several architectural improvements:
+
+- **Centralized Authentication**: Single source of truth for server credentials across all API requests
+- **Persistent Sync Queues**: Failed watched status and progress updates are queued and retried automatically
+- **Async/Await**: Modern Swift concurrency patterns prevent race conditions and memory leaks
+- **Actor-based State**: Thread-safe synchronization for background progress tracking
+- **Detailed Error Handling**: User-visible, actionable error messages instead of silent failures
+- **Real-time Error Display**: Inline error banners and full-screen error recovery screens with retry buttons
+
 ## Limitations
 
 This app was built to solve specific use cases and may not include features you'd expect from a full-featured client:
 - No search functionality (yet)
 - No channel/playlist browsing
 - Basic download management only (no bulk actions, scheduling, or queue reordering)
-- Limited error handling UI
+- "Continue Watching" filtering is client-side only (doesn't use server-side watch filter)
 
 Feel free to fork and extend it for your own needs!
 
@@ -141,8 +160,11 @@ Feel free to fork and extend it for your own needs!
 
 - **Swift** & **SwiftUI** for cross-platform UI
 - **AVKit** for video playback on all platforms
-- **URLSession** for API communication
+- **URLSession** for API communication with centralized auth
+- **Actors** for thread-safe progress sync and watched-status queuing
+- **Combine** for reactive state management and error handling
 - **Conditional compilation** for platform-specific optimizations
+- **UserDefaults** for persistent retry queues and configuration
 - Developed with heavy assistance from AI code generation tools
 
 ## License

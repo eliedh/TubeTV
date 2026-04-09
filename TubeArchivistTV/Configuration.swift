@@ -7,8 +7,25 @@
 
 import Foundation
 
+struct AppConfigurationSnapshot {
+    let baseURL: String
+    let apiToken: String
+
+    var isComplete: Bool {
+        !baseURL.isEmpty && !apiToken.isEmpty
+    }
+
+    var authorizationValue: String {
+        "Token \(apiToken)"
+    }
+}
+
 enum Configuration {
     // MARK: - Server Configuration
+
+    static var current: AppConfigurationSnapshot {
+        AppConfigurationSnapshot(baseURL: baseURL, apiToken: apiToken)
+    }
     
     /// Server base URL from UserDefaults, with trailing slash removed
     static var baseURL: String {
@@ -29,6 +46,14 @@ enum Configuration {
     static var watchedEndpoint: String {
         "\(apiBaseURL)/watched/"
     }
+
+    static var watchedURL: URL? {
+        URL(string: watchedEndpoint)
+    }
+
+    static func videoProgressURL(videoID: String) -> URL? {
+        URL(string: "\(apiBaseURL)/video/\(videoID)/progress/")
+    }
     
     static func videoEndpoint(page: Int, unwatchedOnly: Bool, sortByDownloaded: Bool = true) -> String {
         let sortValue = sortByDownloaded ? "downloaded" : "published"
@@ -37,6 +62,31 @@ enum Configuration {
             urlString += "&watch=unwatched"
         }
         return urlString
+    }
+
+    static func videoURL(page: Int, unwatchedOnly: Bool, sortByDownloaded: Bool = true) -> URL? {
+        URL(string: videoEndpoint(page: page, unwatchedOnly: unwatchedOnly, sortByDownloaded: sortByDownloaded))
+    }
+
+    static func makeAuthorizedRequest(
+        url: URL,
+        method: String = "GET",
+        body: Data? = nil,
+        contentType: String? = nil
+    ) -> URLRequest {
+        var request = URLRequest(url: url)
+        request.httpMethod = method
+        request.httpBody = body
+        if let contentType {
+            request.setValue(contentType, forHTTPHeaderField: "Content-Type")
+        }
+
+        let configuration = current
+        if !configuration.apiToken.isEmpty {
+            request.setValue(configuration.authorizationValue, forHTTPHeaderField: "Authorization")
+        }
+
+        return request
     }
     
     // MARK: - Thumbnail Configuration

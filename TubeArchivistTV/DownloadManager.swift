@@ -21,7 +21,6 @@ class DownloadManager: NSObject, ObservableObject {
     private override init() {
         super.init()
         let config = URLSessionConfiguration.background(withIdentifier: "com.tubetv.download")
-        config.httpAdditionalHeaders = ["Authorization": "Token \(Configuration.apiToken)"]
         config.isDiscretionary = false
         config.sessionSendsLaunchEvents = true
         session = URLSession(configuration: config, delegate: self, delegateQueue: nil)
@@ -69,7 +68,8 @@ class DownloadManager: NSObject, ObservableObject {
         }
         
         // Start download
-        let task = session.downloadTask(with: url)
+        let request = Configuration.makeAuthorizedRequest(url: url)
+        let task = session.downloadTask(with: request)
         task.taskDescription = videoID
         activeTasks[videoID] = task
         activeDownloads.insert(videoID)

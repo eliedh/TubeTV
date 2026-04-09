@@ -51,12 +51,41 @@ struct VideoCard: View {
                     )
                     .shadow(color: Color.black.opacity(0.4), radius: shadowRadius, x: 0, y: 2)
                     
+                    // Progress bar for partial watch progress
+                    if video.isPartiallyWatched {
+                        VStack(spacing: 0) {
+                            Spacer()
+                            // Progress bar at bottom
+                            GeometryReader { geometry in
+                                ZStack(alignment: .leading) {
+                                    // Background
+                                    Rectangle()
+                                        .fill(Color.black.opacity(0.5))
+                                    // Progress fill
+                                    if let progress = video.progress, progress > 0 {
+                                        Rectangle()
+                                            .fill(Color.blue)
+                                            .frame(width: geometry.size.width * CGFloat(progress / 100))
+                                    }
+                                }
+                                .frame(height: 3)
+                            }
+                            .frame(height: 3)
+                        }
+                    }
+                    
                     // Download status indicators (iOS only)
                     #if os(iOS)
                     if showDownloadStatus || downloadManager.isDownloaded(videoID: video.youtubeID ?? "") {
                         downloadStatusBadge
                     } else if let progress = downloadManager.downloadProgress[video.youtubeID ?? ""] {
                         downloadProgressView(progress: progress)
+                    } else if video.isPartiallyWatched {
+                        resumeBadge
+                    }
+                    #elseif os(tvOS)
+                    if video.isPartiallyWatched {
+                        resumeBadge
                     }
                     #endif
                 }
@@ -84,6 +113,21 @@ struct VideoCard: View {
             downloadContextMenu
         }
         #endif
+    }
+    
+    // MARK: - Resume Badge (used on both iOS and tvOS)
+    
+    @ViewBuilder
+    private var resumeBadge: some View {
+        ZStack {
+            Circle()
+                .fill(Color.orange.opacity(0.9))
+            Image(systemName: "play.fill")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundColor(.white)
+        }
+        .frame(width: 32, height: 32)
+        .padding(6)
     }
     
     // MARK: - iOS Download UI Components
@@ -233,6 +277,8 @@ struct VideoCard: View {
         #if os(tvOS)
         if isSelected {
             return .blue
+        } else if video.isPartiallyWatched {
+            return Color(red: 0.3, green: 0.25, blue: 0.15)
         } else if video.watched {
             return Color(red: 0.3, green: 0.2, blue: 0.2)
         } else {
@@ -242,6 +288,8 @@ struct VideoCard: View {
         // iOS/iPadOS: More refined color scheme
         if isSelected {
             return Color(red: 0.0, green: 0.48, blue: 1.0)
+        } else if video.isPartiallyWatched {
+            return Color(red: 0.25, green: 0.2, blue: 0.1)
         } else if video.watched {
             return Color(red: 0.2, green: 0.15, blue: 0.15)
         } else {

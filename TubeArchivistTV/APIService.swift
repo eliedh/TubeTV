@@ -1,100 +1,191 @@
 import Foundation
 import Combine
 
+enum APIServiceError: LocalizedError {
+    case missingConfiguration
+    case invalidURL
+    case invalidResponse
+    case httpStatus(Int)
+    case emptyResponse
+    case decodingFailed
+    case requestFailed(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .missingConfiguration:
+            return "Configure your TubeArchivist server URL and API token in Settings before loading videos."
+        case .invalidURL:
+            return "The app generated an invalid TubeArchivist URL."
+        case .invalidResponse:
+            return "The server returned an invalid response."
+        case .httpStatus(let statusCode):
+            return "The server returned HTTP \(statusCode)."
+        case .emptyResponse:
+            return "The server returned no data."
+        case .decodingFailed:
+            return "The app could not decode the server response."
+        case .requestFailed(let message):
+            return message
+        }
+    }
+}
+
 @MainActor
 class APIService: ObservableObject {
     @Published var videos: [Video] = []
     @Published var hasMorePages: Bool = true
+    @Published var isLoading: Bool = false
+    @Published var isLoadingMore: Bool = false
+    @Published var errorMessage: String?
     private(set) var currentPage: Int = 1
     private(set) var lastUnwatchedOnly: Bool = false
     private(set) var lastSortByDownloaded: Bool = true
-
-    private lazy var session: URLSession = {
-        let config = URLSessionConfiguration.default
-        config.httpAdditionalHeaders = ["Authorization": "Token \(Configuration.apiToken)"]
-        return URLSession(configuration: config)
-    }()
+    private(set) var lastContinueWatching: Bool = false
 
     // MARK: - Public Methods
 
-    func fetchVideos(unwatchedOnly: Bool = false, sortByDownloaded: Bool = true) {
+    func fetchVideos(unwatchedOnly: Bool = false, sortByDownloaded: Bool = true, continueWatching: Bool = false) {
+        Task {
+            await reloadVideos(unwatchedOnly: unwatchedOnly, sortByDownloaded: sortByDownloaded, continueWatching: continueWatching)
+        }
+    }
+
+    func reloadVideos(unwatchedOnly: Bool = false, sortByDownloaded: Bool = true, continueWatching: Bool = false) async {
+        guard !isLoading else { return }
+
         // Reset for new fetch
         currentPage = 1
         lastUnwatchedOnly = unwatchedOnly
         lastSortByDownloaded = sortByDownloaded
+        lastContinueWatching = continueWatching
         hasMorePages = true
+        errorMessage = nil
+        isLoading = true
 
-        guard let url = URL(string: Configuration.videoEndpoint(page: 1, unwatchedOnly: unwatchedOnly, sortByDownloaded: sortByDownloaded)) else {
-            print("Invalid URL")
-            return
+        defer {
+            isLoading = false
         }
 
-        performRequest(url: url) { [weak self] response in
-            guard let self else { return }
-            self.videos = response.data
-            self.hasMorePages = !response.data.isEmpty
+        do {
+            try validateConfiguration()
+            await VideoProgressSync.shared.flushPending()
+            await WatchedStateSync.shared.flushPending()
+
+            guard let url = Configuration.videoURL(page: 1, unwatchedOnly: unwatchedOnly, sortByDownloaded: sortByDownloaded) else {
+                throw APIServiceError.invalidURL
+            }
+
+            let response = try await performRequest(url: url)
+            var filteredVideos = response.data
+            
+            // Apply client-side filter for continue watching
+            if continueWatching {
+                filteredVideos = filteredVideos.filter { $0.isPartiallyWatched }
+                // Sort by progress (highest first)
+                filteredVideos.sort { ($0.progress ?? 0) > ($1.progress ?? 0) }
+            }
+            
+            videos = filteredVideos
+            hasMorePages = !filteredVideos.isEmpty
+        } catch {
+            videos = []
+            hasMorePages = false
+            errorMessage = describe(error)
         }
     }
 
     func loadMoreVideos() {
-        guard hasMorePages else { return }
-        let nextPage = currentPage + 1
-
-        guard let url = URL(string: Configuration.videoEndpoint(page: nextPage, unwatchedOnly: lastUnwatchedOnly, sortByDownloaded: lastSortByDownloaded)) else {
-            print("Invalid URL")
-            return
+        Task {
+            await loadMoreVideosIfNeeded()
         }
+    }
 
-        performRequest(url: url) { [weak self] response in
-            guard let self else { return }
-            if !response.data.isEmpty {
-                self.videos.append(contentsOf: response.data)
-                self.currentPage = nextPage
-                self.hasMorePages = true
-            } else {
-                self.hasMorePages = false
-            }
-        }
+    func dismissError() {
+        errorMessage = nil
     }
 
     // MARK: - Private Methods
 
-    private func performRequest(url: URL, completion: @escaping (VideoResponse) -> Void) {
-        session.dataTask(with: url) { [weak self] data, response, error in
-            guard let self else { return }
-            
-            // Handle network or data errors
-            if let error = error {
-                print("Network error: \(error.localizedDescription)")
-                self.updateHasMorePages(false)
-                return
-            }
+    private func loadMoreVideosIfNeeded() async {
+        guard hasMorePages, !isLoading, !isLoadingMore else { return }
+        let nextPage = currentPage + 1
+        errorMessage = nil
+        isLoadingMore = true
 
-            guard let data = data else {
-                print("No data received")
-                self.updateHasMorePages(false)
-                return
-            }
-
-            // Decode on main actor
-            Task { @MainActor [weak self] in
-                do {
-                    let videoResponse = try JSONDecoder().decode(VideoResponse.self, from: data)
-                    completion(videoResponse)
-                } catch {
-                    print("Decoding error: \(error)")
-                    if let raw = String(data: data, encoding: .utf8) {
-                        print("Raw JSON (first 500 chars): \(raw.prefix(500))")
-                    }
-                    self?.hasMorePages = false
-                }
-            }
-        }.resume()
-    }
-    
-    private nonisolated func updateHasMorePages(_ value: Bool) {
-        Task { @MainActor [weak self] in
-            self?.hasMorePages = value
+        defer {
+            isLoadingMore = false
         }
+
+        do {
+            try validateConfiguration()
+            await VideoProgressSync.shared.flushPending()
+            await WatchedStateSync.shared.flushPending()
+
+            guard let url = Configuration.videoURL(page: nextPage, unwatchedOnly: lastUnwatchedOnly, sortByDownloaded: lastSortByDownloaded) else {
+                throw APIServiceError.invalidURL
+            }
+
+            let response = try await performRequest(url: url)
+            if !response.data.isEmpty {
+                var newVideos = response.data
+                
+                // Apply client-side filter for continue watching
+                if lastContinueWatching {
+                    newVideos = newVideos.filter { $0.isPartiallyWatched }
+                }
+                
+                videos.append(contentsOf: newVideos)
+                currentPage = nextPage
+                hasMorePages = !newVideos.isEmpty
+            } else {
+                hasMorePages = false
+            }
+        } catch {
+            errorMessage = describe(error)
+        }
+    }
+
+    private func performRequest(url: URL) async throws -> VideoResponse {
+        let request = Configuration.makeAuthorizedRequest(url: url)
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw APIServiceError.invalidResponse
+            }
+
+            guard (200...299).contains(httpResponse.statusCode) else {
+                throw APIServiceError.httpStatus(httpResponse.statusCode)
+            }
+
+            guard !data.isEmpty else {
+                throw APIServiceError.emptyResponse
+            }
+
+            do {
+                return try JSONDecoder().decode(VideoResponse.self, from: data)
+            } catch {
+                throw APIServiceError.decodingFailed
+            }
+        } catch let error as APIServiceError {
+            throw error
+        } catch {
+            throw APIServiceError.requestFailed(error.localizedDescription)
+        }
+    }
+
+    private func validateConfiguration() throws {
+        guard Configuration.current.isComplete else {
+            throw APIServiceError.missingConfiguration
+        }
+    }
+
+    private func describe(_ error: Error) -> String {
+        if let localizedError = error as? LocalizedError,
+           let description = localizedError.errorDescription {
+            return description
+        }
+
+        return error.localizedDescription
     }
 }

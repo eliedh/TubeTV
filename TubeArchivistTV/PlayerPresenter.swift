@@ -12,7 +12,7 @@ import AVFoundation
 
 enum PlayerPresenter {
     /// Presents a full-screen video player for the given video
-    static func present(video: Video, token: String) {
+    static func present(video: Video) {
         guard let url = URL(string: video.derivedURLString) else {
             print("Invalid video URL: \(video.derivedURLString)")
             return
@@ -29,13 +29,15 @@ enum PlayerPresenter {
         #endif
 
         let options = [
-            "AVURLAssetHTTPHeaderFieldsKey": ["Authorization": "Token \(token)"]
+            "AVURLAssetHTTPHeaderFieldsKey": ["Authorization": Configuration.current.authorizationValue]
         ]
         let asset = AVURLAsset(url: url, options: options)
         let item = AVPlayerItem(asset: asset)
         let player = AVPlayer(playerItem: item)
 
         let controller = SkippingPlayerViewController()
+        controller.watchedVideoID = video.canonicalVideoID
+        controller.initialPlaybackPosition = video.position
         controller.nowPlayingTitle = video.title
         if let thumb = video.derivedThumbnailURLString, let url = URL(string: thumb) {
             controller.nowPlayingArtworkURL = url
@@ -64,6 +66,8 @@ enum PlayerPresenter {
         let player = AVPlayer(url: url)
 
         let controller = SkippingPlayerViewController()
+        controller.watchedVideoID = video.canonicalVideoID
+        controller.initialPlaybackPosition = video.position
         controller.nowPlayingTitle = video.title
         if let thumb = video.derivedThumbnailURLString, let artURL = URL(string: thumb) {
             controller.nowPlayingArtworkURL = artURL
