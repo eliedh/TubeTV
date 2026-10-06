@@ -36,7 +36,7 @@ This is a lightweight SwiftUI app developed primarily using AI code generation t
 - **Sort toggle**: Easily switch between sorting by download date (newest downloads first) or published date
 - **Continue Watching filter** - Toggle to show only videos you've started watching, sorted by progress
 - **Adaptive grid layout** - 3 columns on Apple TV and iPad, 2 columns on iPhone
-- **Video thumbnails** with titles (always from YouTube CDN)
+- **Video thumbnails** with titles, loaded from your TubeArchivist server (authenticated with your API token) and cached on device
 - **Watched status indicators** - dimmed thumbnails for watched videos with overlay effects
 - **Progress indicators** on in-progress videos:
   - **Progress bar**: Visual blue progress bar at bottom of thumbnail showing watch percentage
@@ -61,16 +61,17 @@ This is a lightweight SwiftUI app developed primarily using AI code generation t
 ### Offline Downloads (iPhone & iPad)
 - **Long-press to download** any video for offline viewing
 - **Background downloads** with on-card progress indicator and percentage
-- **Downloads tab** shows only videos available offline
-- **Local playback** from device storage with automatic fallback to streaming if the file is missing
-- **Manage downloads** via long-press: Cancel active downloads or Delete completed ones
-- **Storage location**: Saved under app Cache at `Caches/VideoDownloads/` (persists across launches; iOS may purge cache under storage pressure)
+- **Downloads tab** shows every video available offline (metadata and thumbnails are stored with the download, so it works without a connection)
+- **Local playback** from device storage, from either tab, with automatic fallback to streaming if the file is missing
+- **Offline resume**: resume position is kept locally and synced to the server when back online
+- **Manage downloads** via long-press: Cancel active downloads, Delete completed ones, or Retry failed ones (marked with a red badge)
+- **Storage location**: Saved under `Application Support/VideoDownloads/` (excluded from iCloud backup, not purged by iOS under storage pressure). Downloads from older versions in `Caches/` are migrated automatically
 - **Network**: Downloads allowed on both Wi‑Fi and cellular
 
 ### Podcast Mode (Background Audio, iPhone & iPad)
 - **Keep listening with the screen locked** or when you switch apps
 - **Lock Screen & Control Center controls**: Play/Pause and Skip ±10s
-- **Now Playing metadata**: title, artwork (YouTube thumbnail), duration, and live progress
+- **Now Playing metadata**: title, artwork, duration, and live progress
 - **Works for both streaming and downloads**
 - **AirPlay & Bluetooth** supported
 - Note: tvOS remains unchanged (no background audio on Apple TV)
@@ -152,7 +153,7 @@ This app was built to solve specific use cases and may not include features you'
 - No search functionality (yet)
 - No channel/playlist browsing
 - Basic download management only (no bulk actions, scheduling, or queue reordering)
-- "Continue Watching" filtering is client-side only (doesn't use server-side watch filter)
+- "Continue Watching" filtering is client-side only (scans up to 10 pages at a time for in-progress videos)
 
 Feel free to fork and extend it for your own needs!
 

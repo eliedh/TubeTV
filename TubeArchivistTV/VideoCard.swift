@@ -13,7 +13,7 @@ struct VideoCard: View {
     let showDownloadStatus: Bool
     let onTap: () -> Void
     
-    @StateObject private var downloadManager = DownloadManager.shared
+    @ObservedObject private var downloadManager = DownloadManager.shared
     @State private var showDownloadOptions = false
     
     init(video: Video, isSelected: Bool, showDownloadStatus: Bool = false, onTap: @escaping () -> Void) {
@@ -28,19 +28,18 @@ struct VideoCard: View {
             VStack(spacing: cardSpacing) {
                 // Thumbnail
                 ZStack(alignment: .bottomTrailing) {
-                    AsyncImage(url: URL(string: video.derivedThumbnailURLString ?? "")) { phase in
-                        switch phase {
-                        case .empty:
-                            ProgressView()
-                                .frame(width: thumbnailSize.width, height: thumbnailSize.height)
-                        case .success(let image):
-                            image
-                                .resizable()
-                                .scaledToFill()
-                        case .failure:
-                            Color.red
-                        @unknown default:
-                            Color.gray
+                    AuthorizedImage(url: thumbnailURL) { image in
+                        image
+                            .resizable()
+                            .scaledToFill()
+                    } placeholder: {
+                        ProgressView()
+                            .frame(width: thumbnailSize.width, height: thumbnailSize.height)
+                    } failure: {
+                        ZStack {
+                            Color(white: 0.2)
+                            Image(systemName: "photo")
+                                .foregroundColor(.gray)
                         }
                     }
                     .frame(width: thumbnailSize.width, height: thumbnailSize.height)
@@ -80,6 +79,8 @@ struct VideoCard: View {
                         downloadStatusBadge
                     } else if let progress = downloadManager.downloadProgress[video.youtubeID ?? ""] {
                         downloadProgressView(progress: progress)
+                    } else if downloadManager.failedDownloads[video.youtubeID ?? ""] != nil {
+                        downloadFailedBadge
                     } else if video.isPartiallyWatched {
                         resumeBadge
                     }
@@ -147,6 +148,19 @@ struct VideoCard: View {
     }
     
     @ViewBuilder
+    private var downloadFailedBadge: some View {
+        ZStack {
+            Circle()
+                .fill(Color.red.opacity(0.9))
+            Image(systemName: "exclamationmark")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundColor(.white)
+        }
+        .frame(width: 32, height: 32)
+        .padding(6)
+    }
+    
+    @ViewBuilder
     private func downloadProgressView(progress: Double) -> some View {
         ZStack {
             Circle()
@@ -175,15 +189,28 @@ struct VideoCard: View {
                     Label("Cancel Download", systemImage: "xmark.circle")
                 }
             } else {
+                if let reason = downloadManager.failedDownloads[videoID] {
+                    Text("Last download failed: \(reason)")
+                }
                 Button {
                     downloadManager.downloadVideo(video)
                 } label: {
-                    Label("Download for Offline", systemImage: "arrow.down.circle")
+                    Label(downloadManager.failedDownloads[videoID] == nil ? "Download for Offline" : "Retry Download",
+                          systemImage: "arrow.down.circle")
                 }
             }
         }
     }
     #endif
+    
+    /// Prefer the thumbnail saved alongside a download so the Downloads tab works offline
+    private var thumbnailURL: URL? {
+        if let videoID = video.canonicalVideoID,
+           let localURL = downloadManager.localThumbnailURL(for: videoID) {
+            return localURL
+        }
+        return video.thumbnailURL
+    }
     
     // MARK: - Platform-specific properties
     

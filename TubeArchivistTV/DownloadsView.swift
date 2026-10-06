@@ -6,11 +6,10 @@
 import SwiftUI
 
 struct DownloadsView: View {
-    @StateObject private var api = APIService()
-    @StateObject private var downloadManager = DownloadManager.shared
+    @ObservedObject private var downloadManager = DownloadManager.shared
     @EnvironmentObject var settings: AppSettings
     @State private var selectedVideoID: String?
-    
+
     private var columns: [GridItem] {
         if UIDevice.current.userInterfaceIdiom == .pad {
             // iPad: 3 columns
@@ -27,11 +26,13 @@ struct DownloadsView: View {
             ]
         }
     }
-    
+
+    /// Comes from metadata stored with each download, so this works offline and
+    /// isn't limited to whatever happens to be on the first page of the library
     private var downloadedVideos: [Video] {
-        downloadManager.getDownloadedVideos(from: api.videos)
+        downloadManager.downloadedVideoList
     }
-    
+
     var body: some View {
         NavigationView {
             Group {
@@ -48,16 +49,10 @@ struct DownloadsView: View {
             }
             .background(Color.black.edgesIgnoringSafeArea(.all))
             .navigationTitle("Downloads")
-            .onAppear {
-                // Fetch videos to match with downloaded IDs
-                if api.videos.isEmpty {
-                    api.fetchVideos(unwatchedOnly: false, sortByDownloaded: false)
-                }
-            }
         }
         .navigationViewStyle(StackNavigationViewStyle())
     }
-    
+
     private var platformSpacing: CGFloat {
         if UIDevice.current.userInterfaceIdiom == .pad {
             18  // iPad
@@ -65,17 +60,17 @@ struct DownloadsView: View {
             16  // iPhone
         }
     }
-    
+
     private var emptyState: some View {
         VStack(spacing: 20) {
             Image(systemName: "arrow.down.circle")
                 .font(.system(size: 60))
                 .foregroundColor(.gray)
-            
+
             Text("No Downloaded Videos")
                 .font(.title2)
                 .foregroundColor(.white)
-            
+
             Text("Long press on any video to download it for offline viewing")
                 .font(.subheadline)
                 .foregroundColor(.gray)
@@ -83,7 +78,7 @@ struct DownloadsView: View {
                 .padding(.horizontal, 40)
         }
     }
-    
+
     private var videoGrid: some View {
         LazyVGrid(columns: columns, spacing: gridSpacing) {
             ForEach(downloadedVideos) { video in
@@ -92,30 +87,19 @@ struct DownloadsView: View {
                     isSelected: selectedVideoID == (video.youtubeID ?? video.id),
                     showDownloadStatus: true
                 ) {
-                    handleVideoTap(video)
+                    // PlayerPresenter plays the local file when one exists
+                    PlayerPresenter.present(video: video)
+                    selectedVideoID = video.youtubeID ?? video.id
                 }
             }
         }
     }
-    
+
     private var gridSpacing: CGFloat {
         if UIDevice.current.userInterfaceIdiom == .pad {
             24  // iPad
         } else {
             16  // iPhone
-        }
-    }
-    
-    private func handleVideoTap(_ video: Video) {
-        // Play from local storage if downloaded
-        if let videoID = video.youtubeID,
-           let localURL = downloadManager.localURL(for: videoID) {
-            PlayerPresenter.presentLocal(video: video, url: localURL)
-            selectedVideoID = videoID
-        } else {
-            // Fallback to streaming if somehow the file is missing
-            PlayerPresenter.present(video: video)
-            selectedVideoID = video.youtubeID ?? video.id
         }
     }
 }

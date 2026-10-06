@@ -56,8 +56,8 @@ struct ContentView: View {
             }
             #endif
             .onAppear {
-                if api.videos.isEmpty {
-                    api.fetchVideos(unwatchedOnly: showUnwatchedOnly, sortByDownloaded: sortByDownloaded, continueWatching: showContinueWatching)
+                if api.videos.isEmpty && !api.isLoading {
+                    reload()
                 }
             }
             .navigationTitle("TubeTV")
@@ -103,7 +103,7 @@ struct ContentView: View {
                     .foregroundColor(.white)
             }
             .onChange(of: showContinueWatching) {
-                api.fetchVideos(unwatchedOnly: showUnwatchedOnly, sortByDownloaded: sortByDownloaded, continueWatching: showContinueWatching)
+                reload()
             }
             Toggle(isOn: $showUnwatchedOnly) {
                 Text("Unwatched Only")
@@ -111,7 +111,7 @@ struct ContentView: View {
                     .foregroundColor(.white)
             }
             .onChange(of: showUnwatchedOnly) {
-                api.fetchVideos(unwatchedOnly: showUnwatchedOnly, sortByDownloaded: sortByDownloaded, continueWatching: showContinueWatching)
+                reload()
             }
             Toggle(isOn: $sortByDownloaded) {
                 Text(sortByDownloaded ? "Sort: Downloaded" : "Sort: Published")
@@ -119,9 +119,9 @@ struct ContentView: View {
                     .foregroundColor(.white)
             }
             .onChange(of: sortByDownloaded) {
-                api.fetchVideos(unwatchedOnly: showUnwatchedOnly, sortByDownloaded: sortByDownloaded, continueWatching: showContinueWatching)
+                reload()
             }
-            Button(action: { api.fetchVideos(unwatchedOnly: showUnwatchedOnly, sortByDownloaded: sortByDownloaded, continueWatching: showContinueWatching) }) {
+            Button(action: { reload() }) {
                 HStack(spacing: 8) {
                     Image(systemName: "arrow.clockwise")
                     Text("Refresh")
@@ -145,7 +145,7 @@ struct ContentView: View {
                 }
                 .toggleStyle(SwitchToggleStyle(tint: .blue))
                 .onChange(of: showContinueWatching) {
-                    api.fetchVideos(unwatchedOnly: showUnwatchedOnly, sortByDownloaded: sortByDownloaded, continueWatching: showContinueWatching)
+                    reload()
                 }
                 
                 Toggle(isOn: $showUnwatchedOnly) {
@@ -155,7 +155,7 @@ struct ContentView: View {
                 }
                 .toggleStyle(SwitchToggleStyle(tint: .blue))
                 .onChange(of: showUnwatchedOnly) {
-                    api.fetchVideos(unwatchedOnly: showUnwatchedOnly, sortByDownloaded: sortByDownloaded, continueWatching: showContinueWatching)
+                    reload()
                 }
                 
                 Toggle(isOn: $sortByDownloaded) {
@@ -165,12 +165,12 @@ struct ContentView: View {
                 }
                 .toggleStyle(SwitchToggleStyle(tint: .blue))
                 .onChange(of: sortByDownloaded) {
-                    api.fetchVideos(unwatchedOnly: showUnwatchedOnly, sortByDownloaded: sortByDownloaded, continueWatching: showContinueWatching)
+                    reload()
                 }
                 
                 Spacer()
                 
-                Button(action: { api.fetchVideos(unwatchedOnly: showUnwatchedOnly, sortByDownloaded: sortByDownloaded, continueWatching: showContinueWatching) }) {
+                Button(action: { reload() }) {
                     HStack(spacing: 8) {
                         Image(systemName: "arrow.clockwise")
                         Text("Refresh")
@@ -196,7 +196,7 @@ struct ContentView: View {
                     }
                     .toggleStyle(SwitchToggleStyle(tint: .orange))
                     .onChange(of: showContinueWatching) {
-                        api.fetchVideos(unwatchedOnly: showUnwatchedOnly, sortByDownloaded: sortByDownloaded, continueWatching: showContinueWatching)
+                        reload()
                     }
                     
                     Toggle(isOn: $showUnwatchedOnly) {
@@ -207,7 +207,7 @@ struct ContentView: View {
                     }
                     .toggleStyle(SwitchToggleStyle(tint: .blue))
                     .onChange(of: showUnwatchedOnly) {
-                        api.fetchVideos(unwatchedOnly: showUnwatchedOnly, sortByDownloaded: sortByDownloaded, continueWatching: showContinueWatching)
+                        reload()
                     }
                 }
                 
@@ -221,7 +221,7 @@ struct ContentView: View {
                     }
                     .toggleStyle(SwitchToggleStyle(tint: .blue))
                     .onChange(of: sortByDownloaded) {
-                        api.fetchVideos(unwatchedOnly: showUnwatchedOnly, sortByDownloaded: sortByDownloaded, continueWatching: showContinueWatching)
+                        reload()
                     }
                     
                     Spacer()
@@ -262,15 +262,15 @@ struct ContentView: View {
                 message: errorMessage,
                 buttonTitle: "Retry"
             ) {
-                api.fetchVideos(unwatchedOnly: showUnwatchedOnly, sortByDownloaded: sortByDownloaded)
+                reload()
             }
         } else if api.videos.isEmpty {
             fullScreenMessage(
                 title: "No Videos Found",
-                message: showUnwatchedOnly ? "Try turning off the unwatched filter or refreshing your library." : "Refresh to try loading your TubeArchivist library again.",
+                message: (showUnwatchedOnly || showContinueWatching) ? "Try turning off the filters or refreshing your library." : "Refresh to try loading your TubeArchivist library again.",
                 buttonTitle: "Refresh"
             ) {
-                api.fetchVideos(unwatchedOnly: showUnwatchedOnly, sortByDownloaded: sortByDownloaded)
+                reload()
             }
         } else {
             videoGrid
@@ -315,6 +315,10 @@ struct ContentView: View {
     }
     
     // MARK: - Actions
+
+    private func reload() {
+        api.fetchVideos(unwatchedOnly: showUnwatchedOnly, sortByDownloaded: sortByDownloaded, continueWatching: showContinueWatching)
+    }
     
     private func handleVideoTap(_ video: Video) {
         PlayerPresenter.present(video: video)

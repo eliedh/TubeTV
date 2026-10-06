@@ -45,7 +45,7 @@ class AppSettings: ObservableObject {
     }
     
     func saveSettings(serverURL: String, apiToken: String) {
-        self.serverURL = serverURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.serverURL = Configuration.normalizeServerURL(serverURL)
         self.apiToken = apiToken.trimmingCharacters(in: .whitespacesAndNewlines)
         self.isConfigured = true
     }

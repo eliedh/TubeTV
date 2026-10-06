@@ -12,7 +12,7 @@ final class NowPlayingManager {
     private weak var player: AVPlayer?
     private var commandCenter = MPRemoteCommandCenter.shared()
     private var nowPlayingInfo: [String: Any] = [:]
-    private var artworkTask: URLSessionDataTask?
+    private var artworkTask: Task<Void, Never>?
     
     private let onPlay: () -> Void
     private let onPause: () -> Void
@@ -49,19 +49,22 @@ final class NowPlayingManager {
         // Fetch artwork asynchronously
         if let artworkURL {
             artworkTask?.cancel()
-            artworkTask = URLSession.shared.dataTask(with: artworkURL) { [weak self] data, _, _ in
-                guard let self, let data, let image = UIImage(data: data) else { return }
-                let artwork = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
-                DispatchQueue.main.async {
-                    self.nowPlayingInfo[MPMediaItemPropertyArtwork] = artwork
-                    MPNowPlayingInfoCenter.default().nowPlayingInfo = self.nowPlayingInfo
-                }
+            // Goes through ImageLoader so TubeArchivist-hosted artwork gets the API token
+            artworkTask = Task { [weak self] in
+                guard let image = try? await ImageLoader.shared.image(for: artworkURL),
+                      let self, !Task.isCancelled else { return }
+                self.nowPlayingInfo[MPMediaItemPropertyArtwork] = Self.makeArtwork(image)
+                MPNowPlayingInfoCenter.default().nowPlayingInfo = self.nowPlayingInfo
             }
-            artworkTask?.resume()
         }
         
         // Command center
         setupRemoteCommands()
+    }
+    
+    /// MediaPlayer invokes the artwork handler off the main thread, so it must not inherit MainActor isolation
+    private nonisolated static func makeArtwork(_ image: UIImage) -> MPMediaItemArtwork {
+        MPMediaItemArtwork(boundsSize: image.size) { _ in image }
     }
     
     func stop() {

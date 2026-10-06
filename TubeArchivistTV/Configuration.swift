@@ -27,10 +27,28 @@ enum Configuration {
         AppConfigurationSnapshot(baseURL: baseURL, apiToken: apiToken)
     }
     
-    /// Server base URL from UserDefaults, with trailing slash removed
+    /// Server base URL from UserDefaults, normalized (scheme added, trailing slashes removed)
     static var baseURL: String {
-        let url = UserDefaults.standard.string(forKey: "serverURL") ?? ""
-        return url.hasSuffix("/") ? String(url.dropLast()) : url
+        normalizeServerURL(UserDefaults.standard.string(forKey: "serverURL") ?? "")
+    }
+
+    /// Trims whitespace, strips trailing slashes and defaults to http:// when no scheme was entered
+    static func normalizeServerURL(_ rawValue: String) -> String {
+        var url = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !url.isEmpty else { return "" }
+        if !url.lowercased().hasPrefix("http://") && !url.lowercased().hasPrefix("https://") {
+            url = "http://" + url
+        }
+        while url.hasSuffix("/") {
+            url.removeLast()
+        }
+        return url
+    }
+
+    /// True when the URL points at the configured TubeArchivist server (so it may receive the API token)
+    static func isServerURL(_ url: URL) -> Bool {
+        guard let server = URL(string: baseURL), let serverHost = server.host else { return false }
+        return url.host == serverHost && url.port == server.port && url.scheme == server.scheme
     }
     
     /// API token from UserDefaults
@@ -87,10 +105,5 @@ enum Configuration {
         }
 
         return request
-    }
-    
-    // MARK: - Thumbnail Configuration
-    static var thumbnailBaseURL: String {
-        baseURL
     }
 }

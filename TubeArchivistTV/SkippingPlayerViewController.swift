@@ -48,7 +48,7 @@ final class SkippingPlayerViewController: AVPlayerViewController {
         // Cycle to next speed
         currentSpeedIndex = (currentSpeedIndex + 1) % playbackSpeeds.count
         let newSpeed = playbackSpeeds[currentSpeedIndex]
-        player?.rate = newSpeed
+        applyRate(newSpeed)
         
         // Show a brief notification of the new speed
         showSpeedNotification(speed: newSpeed)
@@ -67,6 +67,8 @@ final class SkippingPlayerViewController: AVPlayerViewController {
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
+        // viewDidAppear can fire again (e.g. after a modal over the player); don't double-register
+        guard timeObserverToken == nil else { return }
         applyInitialPlaybackPositionIfNeeded()
         observePlaybackForIdleTimer()
         observeFivePercentRemaining()
@@ -86,6 +88,7 @@ final class SkippingPlayerViewController: AVPlayerViewController {
             player.removeTimeObserver(token)
             timeObserverToken = nil
         }
+        NotificationCenter.default.removeObserver(self, name: .AVPlayerItemDidPlayToEndTime, object: nil)
         nowPlayingManager?.stop()
         nowPlayingManager = nil
         removeAudioSessionNotifications()
@@ -132,7 +135,7 @@ final class SkippingPlayerViewController: AVPlayerViewController {
         currentSpeedIndex = index
         
         // Apply new speed
-        player.rate = speed
+        applyRate(speed)
         
         // Recreate the menu to update checkmarks
         #if os(tvOS)
@@ -145,6 +148,16 @@ final class SkippingPlayerViewController: AVPlayerViewController {
         print("Playback speed changed to \(speed)×")
     }
     
+    /// Sets the rate and makes it stick: without defaultRate, play() (e.g. from Lock Screen
+    /// controls or after an interruption) silently resets playback to 1.0×
+    private func applyRate(_ speed: Float) {
+        guard let player else { return }
+        player.defaultRate = speed
+        if player.rate != 0 {
+            player.rate = speed
+        }
+    }
+
     // MARK: - Watch Progress Tracking
     
     private func observeFivePercentRemaining() {
@@ -173,6 +186,7 @@ final class SkippingPlayerViewController: AVPlayerViewController {
 
     private func markWatched() {
         guard let watchedVideoID else { return }
+        PlaybackStateStore.shared.markWatched(videoID: watchedVideoID)
 
         Task {
             await WatchedStateSync.shared.enqueue(videoID: watchedVideoID)
@@ -222,6 +236,7 @@ final class SkippingPlayerViewController: AVPlayerViewController {
         guard force || currentPosition - lastSyncedProgressPosition >= 5 else { return }
 
         lastSyncedProgressPosition = currentPosition
+        PlaybackStateStore.shared.record(videoID: watchedVideoID, position: currentPosition)
 
         Task {
             let response = await VideoProgressSync.shared.enqueue(videoID: watchedVideoID, position: currentPosition)
@@ -235,13 +250,12 @@ final class SkippingPlayerViewController: AVPlayerViewController {
 
     private func observePlaybackForIdleTimer() {
         guard let player = player else { return }
-        timeControlStatusObservation = player.observe(\.timeControlStatus, options: [.initial, .new]) { player, _ in
+        timeControlStatusObservation = player.observe(\.timeControlStatus, options: [.initial, .new]) { [weak self] player, _ in
             DispatchQueue.main.async {
                 UIApplication.shared.isIdleTimerDisabled = (player.timeControlStatus == .playing)
-            }
-
-            if player.timeControlStatus != .playing {
-                self.syncProgress(force: true)
+                if player.timeControlStatus != .playing {
+                    self?.syncProgress(force: true)
+                }
             }
         }
         NotificationCenter.default.addObserver(self, selector: #selector(didFinishPlaying), name: .AVPlayerItemDidPlayToEndTime, object: player.currentItem)
@@ -285,15 +299,16 @@ final class SkippingPlayerViewController: AVPlayerViewController {
         let currentTime = CMTimeGetSeconds(player.currentTime())
         let newTime = max(0, currentTime + seconds)
         
-        // Use 1 as timescale for simplicity since we're dealing with seconds
-        let time = CMTime(seconds: newTime, preferredTimescale: 1)
+        let time = CMTime(seconds: newTime, preferredTimescale: 600)
         player.seek(to: time, toleranceBefore: .zero, toleranceAfter: .zero)
     }
 
     // MARK: - Now Playing & Remote Commands
     private func setupNowPlaying() {
         guard let player = player else { return }
-        let duration = player.currentItem?.asset.duration.seconds
+        // item.duration doesn't block (asset.duration synchronously loads over the network on the
+        // main thread); it may still be indefinite here, updateElapsedTime fills it in later
+        let duration = player.currentItem?.duration.seconds
         nowPlayingManager = NowPlayingManager(
             player: player,
             onPlay: { [weak self] in self?.player?.play() },
