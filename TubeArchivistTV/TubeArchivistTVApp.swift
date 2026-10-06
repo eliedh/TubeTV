@@ -34,29 +34,40 @@ struct TubeTVApp: App {
     
     var body: some Scene {
         WindowGroup {
-            if settings.isConfigured {
-                #if os(tvOS)
+            Group {
+                rootView
+            }
+            .onOpenURL { url in
+                guard settings.isConfigured else { return }
+                DeepLinkHandler.handle(url)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var rootView: some View {
+        if settings.isConfigured {
+            #if os(tvOS)
+            ContentView()
+                .environmentObject(settings)
+            #else
+            // iOS: Use TabView for iPad and iPhone
+            TabView {
                 ContentView()
                     .environmentObject(settings)
-                #else
-                // iOS: Use TabView for iPad and iPhone
-                TabView {
-                    ContentView()
-                        .environmentObject(settings)
-                        .tabItem {
-                            Label("Videos", systemImage: "play.rectangle.fill")
-                        }
-                    
-                    DownloadsView()
-                        .environmentObject(settings)
-                        .tabItem {
-                            Label("Downloads", systemImage: "arrow.down.circle.fill")
-                        }
-                }
-                #endif
-            } else {
-                SettingsView(settings: settings)
+                    .tabItem {
+                        Label("Videos", systemImage: "play.rectangle.fill")
+                    }
+                
+                DownloadsView()
+                    .environmentObject(settings)
+                    .tabItem {
+                        Label("Downloads", systemImage: "arrow.down.circle.fill")
+                    }
             }
+            #endif
+        } else {
+            SettingsView(settings: settings)
         }
     }
 }

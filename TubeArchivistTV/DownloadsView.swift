@@ -9,22 +9,12 @@ struct DownloadsView: View {
     @ObservedObject private var downloadManager = DownloadManager.shared
     @EnvironmentObject var settings: AppSettings
     @State private var selectedVideoID: String?
+    @State private var pendingBulkDelete: BulkDelete?
+    @AppStorage(DownloadManager.wifiOnlyDefaultsKey) private var wifiOnly = false
 
-    private var columns: [GridItem] {
-        if UIDevice.current.userInterfaceIdiom == .pad {
-            // iPad: 3 columns
-            [
-                GridItem(.flexible(), spacing: 16),
-                GridItem(.flexible(), spacing: 16),
-                GridItem(.flexible(), spacing: 16)
-            ]
-        } else {
-            // iPhone: 2 columns
-            [
-                GridItem(.flexible(), spacing: 12),
-                GridItem(.flexible(), spacing: 12)
-            ]
-        }
+    private enum BulkDelete: Identifiable {
+        case watched, all
+        var id: Self { self }
     }
 
     /// Comes from metadata stored with each download, so this works offline and
@@ -40,7 +30,8 @@ struct DownloadsView: View {
                     emptyState
                 } else {
                     ScrollView {
-                        VStack(spacing: platformSpacing) {
+                        VStack(spacing: Layout.sectionSpacing) {
+                            storageSummary
                             videoGrid
                         }
                         .padding()
@@ -49,15 +40,80 @@ struct DownloadsView: View {
             }
             .background(Color.black.edgesIgnoringSafeArea(.all))
             .navigationTitle("Downloads")
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    manageMenu
+                }
+            }
+            .confirmationDialog(
+                confirmationTitle,
+                isPresented: Binding(
+                    get: { pendingBulkDelete != nil },
+                    set: { if !$0 { pendingBulkDelete = nil } }
+                ),
+                titleVisibility: .visible,
+                presenting: pendingBulkDelete
+            ) { action in
+                Button("Delete", role: .destructive) {
+                    switch action {
+                    case .watched: downloadManager.deleteWatchedVideos()
+                    case .all: downloadManager.deleteAllVideos()
+                    }
+                }
+                Button("Cancel", role: .cancel) {}
+            }
         }
         .navigationViewStyle(StackNavigationViewStyle())
     }
 
-    private var platformSpacing: CGFloat {
-        if UIDevice.current.userInterfaceIdiom == .pad {
-            18  // iPad
-        } else {
-            16  // iPhone
+    private var storageSummary: some View {
+        HStack {
+            Image(systemName: "internaldrive")
+            Text("\(downloadedVideos.count) \(downloadedVideos.count == 1 ? "video" : "videos") · \(formattedStorage)")
+            Spacer()
+            if wifiOnly {
+                Label("Wi-Fi only", systemImage: "wifi")
+                    .labelStyle(.titleAndIcon)
+            }
+        }
+        .font(.subheadline)
+        .foregroundColor(.gray)
+    }
+
+    private var formattedStorage: String {
+        ByteCountFormatter.string(fromByteCount: downloadManager.storageUsed, countStyle: .file)
+    }
+
+    private var manageMenu: some View {
+        Menu {
+            Button(role: .destructive) {
+                pendingBulkDelete = .watched
+            } label: {
+                Label("Delete Watched (\(downloadManager.watchedDownloadIDs.count))", systemImage: "eye")
+            }
+            .disabled(downloadManager.watchedDownloadIDs.isEmpty)
+
+            Button(role: .destructive) {
+                pendingBulkDelete = .all
+            } label: {
+                Label("Delete All Downloads", systemImage: "trash")
+            }
+            .disabled(downloadedVideos.isEmpty)
+        } label: {
+            Image(systemName: "ellipsis.circle")
+                .font(.title2)
+        }
+    }
+
+    private var confirmationTitle: String {
+        switch pendingBulkDelete {
+        case .watched:
+            let count = downloadManager.watchedDownloadIDs.count
+            return "Delete \(count) watched \(count == 1 ? "download" : "downloads")?"
+        case .all:
+            return "Delete all downloads (\(formattedStorage))?"
+        case nil:
+            return ""
         }
     }
 
@@ -80,7 +136,7 @@ struct DownloadsView: View {
     }
 
     private var videoGrid: some View {
-        LazyVGrid(columns: columns, spacing: gridSpacing) {
+        LazyVGrid(columns: Layout.gridColumns, spacing: Layout.gridSpacing) {
             ForEach(downloadedVideos) { video in
                 VideoCard(
                     video: video,
@@ -92,14 +148,6 @@ struct DownloadsView: View {
                     selectedVideoID = video.youtubeID ?? video.id
                 }
             }
-        }
-    }
-
-    private var gridSpacing: CGFloat {
-        if UIDevice.current.userInterfaceIdiom == .pad {
-            24  // iPad
-        } else {
-            16  // iPhone
         }
     }
 }

@@ -10,6 +10,8 @@ import Combine
 class DownloadManager: NSObject, ObservableObject {
     static let shared = DownloadManager()
     static let sessionIdentifier = "com.tubetv.download"
+    /// UserDefaults key for the "download over Wi-Fi only" setting
+    static let wifiOnlyDefaultsKey = "downloadsWiFiOnly"
 
     @Published var downloadedVideos: Set<String> = []
     @Published var downloadProgress: [String: Double] = [:]
@@ -18,6 +20,8 @@ class DownloadManager: NSObject, ObservableObject {
     @Published var failedDownloads: [String: String] = [:]
     /// Metadata for downloaded (and in-flight) videos, so the Downloads tab works offline
     @Published private(set) var storedVideos: [String: Video] = [:]
+    /// Disk space used by downloads (videos, thumbnails, metadata), in bytes
+    @Published private(set) var storageUsed: Int64 = 0
 
     /// Completion handler handed to us by the system when it relaunches the app for background downloads
     var backgroundCompletionHandler: (() -> Void)?
@@ -89,7 +93,12 @@ class DownloadManager: NSObject, ObservableObject {
         saveThumbnail(for: video, videoID: videoID)
 
         // Start download
-        let request = Configuration.makeAuthorizedRequest(url: url)
+        var request = Configuration.makeAuthorizedRequest(url: url)
+        if UserDefaults.standard.bool(forKey: Self.wifiOnlyDefaultsKey) {
+            // The background session waits for Wi-Fi instead of using cellular / hotspot data
+            request.allowsCellularAccess = false
+            request.allowsExpensiveNetworkAccess = false
+        }
         let task = session.downloadTask(with: request)
         task.taskDescription = videoID
         activeTasks[videoID] = task
@@ -110,6 +119,7 @@ class DownloadManager: NSObject, ObservableObject {
             removeSidecarFiles(for: videoID)
             downloadedVideos.remove(videoID)
             saveDownloadedVideos()
+            updateStorageUsed()
             print("Deleted video: \(videoID)")
         } catch {
             print("Error deleting video: \(error.localizedDescription)")
@@ -126,6 +136,25 @@ class DownloadManager: NSObject, ObservableObject {
             removeSidecarFiles(for: videoID)
         }
         print("Cancelled download for video: \(videoID)")
+    }
+
+    /// Downloaded videos already marked as watched
+    var watchedDownloadIDs: [String] {
+        downloadedVideos.filter { storedVideos[$0]?.watched == true }
+    }
+
+    /// Deletes every downloaded video that has been watched
+    func deleteWatchedVideos() {
+        for videoID in watchedDownloadIDs {
+            deleteVideo(videoID: videoID)
+        }
+    }
+
+    /// Deletes all downloads
+    func deleteAllVideos() {
+        for videoID in downloadedVideos {
+            deleteVideo(videoID: videoID)
+        }
     }
 
     /// All downloaded videos with their stored metadata, newest first
@@ -232,6 +261,7 @@ class DownloadManager: NSObject, ObservableObject {
             downloadedVideos = validVideos
             saveDownloadedVideos()
         }
+        updateStorageUsed()
 
         // Load stored metadata
         let decoder = JSONDecoder()
@@ -242,6 +272,16 @@ class DownloadManager: NSObject, ObservableObject {
                let videoID = video.canonicalVideoID {
                 storedVideos[videoID] = video
             }
+        }
+    }
+
+    private func updateStorageUsed() {
+        let files = (try? fileManager.contentsOfDirectory(
+            at: Self.downloadsDirectory(),
+            includingPropertiesForKeys: [.fileSizeKey]
+        )) ?? []
+        storageUsed = files.reduce(0) { total, file in
+            total + Int64((try? file.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0)
         }
     }
 
@@ -345,6 +385,7 @@ extension DownloadManager: URLSessionDownloadDelegate {
                 self.activeTasks.removeValue(forKey: videoID)
                 self.downloadProgress.removeValue(forKey: videoID)
                 self.failedDownloads.removeValue(forKey: videoID)
+                self.updateStorageUsed()
 
                 print("Download completed for video: \(videoID)")
             }

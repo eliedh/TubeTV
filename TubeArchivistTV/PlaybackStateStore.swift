@@ -35,6 +35,16 @@ final class PlaybackStateStore {
         return position
     }
 
+    /// Overlays this session's playback state (if any) onto server data
+    func applyLocalState(to video: Video) -> Video {
+        guard let videoID = video.canonicalVideoID else { return video }
+        let isWatched = watchedIDs.contains(videoID)
+        guard let position = positions[videoID] else {
+            return isWatched ? video.withPlayback(position: video.position, watched: true) : video
+        }
+        return video.withPlayback(position: position, watched: isWatched || video.watched)
+    }
+
     func reset() {
         positions.removeAll()
         watchedIDs.removeAll()

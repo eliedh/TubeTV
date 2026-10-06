@@ -14,6 +14,9 @@ struct SettingsView: View {
     @State private var isTestingConnection = false
     @State private var testResult: TestResult?
     @Environment(\.dismiss) private var dismiss
+    #if os(iOS)
+    @AppStorage(DownloadManager.wifiOnlyDefaultsKey) private var downloadsWiFiOnly = false
+    #endif
     
     init(settings: AppSettings) {
         self.settings = settings
@@ -95,6 +98,15 @@ struct SettingsView: View {
                         }
                     }
                 }
+                
+                #if os(iOS)
+                Section(
+                    header: Text("Downloads").font(.headline),
+                    footer: Text("When on, new downloads wait for Wi-Fi instead of using cellular data.")
+                ) {
+                    Toggle("Download over Wi-Fi only", isOn: $downloadsWiFiOnly)
+                }
+                #endif
                 
                 Section {
                     Button(action: saveSettings) {

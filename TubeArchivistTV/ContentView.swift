@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 
 struct ContentView: View {
     @StateObject private var api = APIService()
@@ -9,42 +10,17 @@ struct ContentView: View {
     @State private var showContinueWatching = false
     @State private var showSettings = false
 
-    private var columns: [GridItem] {
-        #if os(tvOS)
-        [
-            GridItem(.flexible(), spacing: 20),
-            GridItem(.flexible(), spacing: 20),
-            GridItem(.flexible(), spacing: 20)
-        ]
-        #else
-        if UIDevice.current.userInterfaceIdiom == .pad {
-            // iPad: 3 columns like tvOS but with tighter spacing
-            [
-                GridItem(.flexible(), spacing: 16),
-                GridItem(.flexible(), spacing: 16),
-                GridItem(.flexible(), spacing: 16)
-            ]
-        } else {
-            // iPhone: 2 columns
-            [
-                GridItem(.flexible(), spacing: 12),
-                GridItem(.flexible(), spacing: 12)
-            ]
-        }
-        #endif
-    }
-
     var body: some View {
         NavigationView {
             ScrollView {
-                VStack(spacing: platformSpacing) {
+                VStack(spacing: Layout.sectionSpacing) {
                     controlsBar
                     if let errorMessage = api.errorMessage, !api.videos.isEmpty {
                         inlineErrorBanner(message: errorMessage)
                     }
                     contentBody
                     if api.hasMorePages && !api.videos.isEmpty {
-                        loadMoreButton
+                        paginationFooter
                     }
                 }
                 .padding()
@@ -58,6 +34,16 @@ struct ContentView: View {
             .onAppear {
                 if api.videos.isEmpty && !api.isLoading {
                     reload()
+                }
+            }
+            .onChange(of: showContinueWatching) { reload() }
+            .onChange(of: showUnwatchedOnly) { reload() }
+            .onChange(of: sortByDownloaded) { reload() }
+            .onReceive(NotificationCenter.default.publisher(for: .playerDidClose)) { notification in
+                // Update just the played video's watched state / progress
+                guard let videoID = notification.object as? String else { return }
+                Task {
+                    await api.refreshVideo(videoID: videoID)
                 }
             }
             .navigationTitle("TubeTV")
@@ -77,153 +63,33 @@ struct ContentView: View {
         .navigationViewStyle(StackNavigationViewStyle())
         #endif
     }
-    
-    private var platformSpacing: CGFloat {
-        #if os(tvOS)
-        20
-        #else
-        if UIDevice.current.userInterfaceIdiom == .pad {
-            18  // iPad: between tvOS and iPhone
-        } else {
-            16  // iPhone
-        }
-        #endif
-    }
-    
+
     // MARK: - View Components
-    
+
     @ViewBuilder
     private var controlsBar: some View {
-        #if os(tvOS)
-        HStack(spacing: 24) {
-            Spacer()
-            Toggle(isOn: $showContinueWatching) {
-                Text("Continue Watching")
-                    .font(.headline)
-                    .foregroundColor(.white)
-            }
-            .onChange(of: showContinueWatching) {
-                reload()
-            }
-            Toggle(isOn: $showUnwatchedOnly) {
-                Text("Unwatched Only")
-                    .font(.headline)
-                    .foregroundColor(.white)
-            }
-            .onChange(of: showUnwatchedOnly) {
-                reload()
-            }
-            Toggle(isOn: $sortByDownloaded) {
-                Text(sortByDownloaded ? "Sort: Downloaded" : "Sort: Published")
-                    .font(.headline)
-                    .foregroundColor(.white)
-            }
-            .onChange(of: sortByDownloaded) {
-                reload()
-            }
-            Button(action: { reload() }) {
-                HStack(spacing: 8) {
-                    Image(systemName: "arrow.clockwise")
-                    Text("Refresh")
-                        .font(.headline)
-                }
-                .foregroundColor(.white)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .background(Color.blue)
-                .cornerRadius(10)
-            }
-        }
-        #else
-        if UIDevice.current.userInterfaceIdiom == .pad {
-            // iPad: Horizontal layout similar to tvOS but more compact
-            HStack(spacing: 20) {
-                Toggle(isOn: $showContinueWatching) {
-                    Text("Continue Watching")
-                        .font(.headline)
-                        .foregroundColor(.white)
-                }
-                .toggleStyle(SwitchToggleStyle(tint: .blue))
-                .onChange(of: showContinueWatching) {
-                    reload()
-                }
-                
-                Toggle(isOn: $showUnwatchedOnly) {
-                    Text("Unwatched Only")
-                        .font(.headline)
-                        .foregroundColor(.white)
-                }
-                .toggleStyle(SwitchToggleStyle(tint: .blue))
-                .onChange(of: showUnwatchedOnly) {
-                    reload()
-                }
-                
-                Toggle(isOn: $sortByDownloaded) {
-                    Text(sortByDownloaded ? "Sort: Downloaded" : "Sort: Published")
-                        .font(.headline)
-                        .foregroundColor(.white)
-                }
-                .toggleStyle(SwitchToggleStyle(tint: .blue))
-                .onChange(of: sortByDownloaded) {
-                    reload()
-                }
-                
+        switch Layout.deviceClass {
+        case .tv:
+            HStack(spacing: 24) {
                 Spacer()
-                
-                Button(action: { reload() }) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "arrow.clockwise")
-                        Text("Refresh")
-                            .font(.headline)
-                    }
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .background(Color.blue)
-                    .cornerRadius(10)
-                }
+                filterToggles
+                refreshButton
             }
-        } else {
-            // iPhone: Optimized touch-friendly layout
+        case .pad:
+            HStack(spacing: 20) {
+                filterToggles
+                Spacer()
+                refreshButton
+            }
+        case .phone:
+            // Two rows; refreshing is done with pull-to-refresh
             VStack(spacing: 12) {
-                // First row: Continue Watching + Unwatched filter
                 HStack(spacing: 12) {
-                    Toggle(isOn: $showContinueWatching) {
-                        Text("Continue")
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                            .foregroundColor(.white)
-                    }
-                    .toggleStyle(SwitchToggleStyle(tint: .orange))
-                    .onChange(of: showContinueWatching) {
-                        reload()
-                    }
-                    
-                    Toggle(isOn: $showUnwatchedOnly) {
-                        Text("Unwatched")
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                            .foregroundColor(.white)
-                    }
-                    .toggleStyle(SwitchToggleStyle(tint: .blue))
-                    .onChange(of: showUnwatchedOnly) {
-                        reload()
-                    }
+                    filterToggle("Continue", isOn: $showContinueWatching, tint: .orange)
+                    filterToggle("Unwatched", isOn: $showUnwatchedOnly)
                 }
-                
-                // Second row: Sort toggle (full width)
                 HStack {
-                    Toggle(isOn: $sortByDownloaded) {
-                        Text(sortByDownloaded ? "Sorted: New Downloads" : "Sorted: Published")
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                            .foregroundColor(.white)
-                    }
-                    .toggleStyle(SwitchToggleStyle(tint: .blue))
-                    .onChange(of: sortByDownloaded) {
-                        reload()
-                    }
-                    
+                    filterToggle(sortByDownloaded ? "Sorted: New Downloads" : "Sorted: Published", isOn: $sortByDownloaded)
                     Spacer()
                 }
             }
@@ -234,17 +100,53 @@ struct ContentView: View {
                     .shadow(color: Color.black.opacity(0.3), radius: 4, x: 0, y: 2)
             )
         }
+    }
+
+    /// Toggles shown in a single row on tvOS and iPad
+    @ViewBuilder
+    private var filterToggles: some View {
+        filterToggle("Continue Watching", isOn: $showContinueWatching)
+        filterToggle("Unwatched Only", isOn: $showUnwatchedOnly)
+        filterToggle(sortByDownloaded ? "Sort: Downloaded" : "Sort: Published", isOn: $sortByDownloaded)
+    }
+
+    private func filterToggle(_ title: String, isOn: Binding<Bool>, tint: Color = .blue) -> some View {
+        Toggle(isOn: isOn) {
+            Text(title)
+                .font(Layout.deviceClass == .phone ? Font.subheadline.weight(.medium) : Font.headline)
+                .foregroundColor(.white)
+        }
+        #if os(iOS)
+        .toggleStyle(SwitchToggleStyle(tint: tint))
         #endif
     }
-    
+
+    private var refreshButton: some View {
+        Button(action: { reload() }) {
+            HStack(spacing: 8) {
+                Image(systemName: "arrow.clockwise")
+                Text("Refresh")
+                    .font(.headline)
+            }
+            .foregroundColor(.white)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(Color.blue)
+            .cornerRadius(10)
+        }
+    }
+
     private var videoGrid: some View {
-        LazyVGrid(columns: columns, spacing: gridSpacing) {
+        LazyVGrid(columns: Layout.gridColumns, spacing: Layout.gridSpacing) {
             ForEach(api.videos) { video in
                 VideoCard(
                     video: video,
                     isSelected: selectedVideoID == (video.youtubeID ?? video.id)
                 ) {
                     handleVideoTap(video)
+                }
+                .onAppear {
+                    loadMoreIfNeeded(currentVideo: video)
                 }
             }
         }
@@ -276,50 +178,52 @@ struct ContentView: View {
             videoGrid
         }
     }
-    
-    private var gridSpacing: CGFloat {
-        #if os(tvOS)
-        30
-        #else
-        if UIDevice.current.userInterfaceIdiom == .pad {
-            24  // iPad: between tvOS and iPhone
-        } else {
-            16  // iPhone
-        }
-        #endif
-    }
-    
-    private var loadMoreButton: some View {
-        Button(action: { api.loadMoreVideos() }) {
-            HStack(spacing: 8) {
-                if api.isLoadingMore {
-                    ProgressView()
-                        .tint(.white)
-                } else {
-                    Image(systemName: "chevron.down")
-                    Text("Load More")
+
+    /// Spinner while the next page loads (triggered automatically while scrolling);
+    /// a manual button only when the automatic load failed
+    @ViewBuilder
+    private var paginationFooter: some View {
+        if api.errorMessage != nil && !api.isLoadingMore {
+            Button(action: { api.loadMoreVideos() }) {
+                HStack(spacing: 8) {
+                    Image(systemName: "arrow.clockwise")
+                    Text("Try Loading More")
                         .font(.headline)
                 }
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .background(
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(Color(red: 0.3, green: 0.3, blue: 0.3))
+                )
             }
-            .foregroundColor(.white)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 12)
-            .background(
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(Color(red: 0.3, green: 0.3, blue: 0.3))
-            )
-            .shadow(color: Color.black.opacity(0.3), radius: 4, x: 0, y: 2)
+            .padding(.bottom, 30)
+        } else {
+            ProgressView()
+                .tint(.white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 20)
+                .onAppear {
+                    api.loadMoreVideos()
+                }
         }
-        .disabled(api.isLoadingMore)
-        .padding(.bottom, 30)
     }
-    
+
     // MARK: - Actions
 
     private func reload() {
         api.fetchVideos(unwatchedOnly: showUnwatchedOnly, sortByDownloaded: sortByDownloaded, continueWatching: showContinueWatching)
     }
-    
+
+    /// Starts loading the next page once one of the last few cards scrolls into view
+    private func loadMoreIfNeeded(currentVideo: Video) {
+        guard api.hasMorePages, api.errorMessage == nil else { return }
+        if api.videos.suffix(Layout.prefetchThreshold).contains(where: { $0.id == currentVideo.id }) {
+            api.loadMoreVideos()
+        }
+    }
+
     private func handleVideoTap(_ video: Video) {
         PlayerPresenter.present(video: video)
         selectedVideoID = video.youtubeID ?? video.id

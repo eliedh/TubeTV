@@ -24,46 +24,15 @@ final class SkippingPlayerViewController: AVPlayerViewController {
     var watchedVideoID: String?
     var initialPlaybackPosition: Double?
     
-    // Playback speed settings
-    private var currentSpeedIndex: Int = 2 // Default to 1.0x
+    // Playback speed settings, shown in the system player's own speed menu
     private let playbackSpeeds: [Float] = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0]
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        setupCustomTransportBarItems()
-        setupiOSControls()
-    }
-    
-    private func setupiOSControls() {
-        #if os(iOS)
-        // On iOS, we can add a double-tap gesture to cycle through speeds
-        let doubleTapGesture = UITapGestureRecognizer(target: self, action: #selector(handleDoubleTap))
-        doubleTapGesture.numberOfTapsRequired = 2
-        self.view.addGestureRecognizer(doubleTapGesture)
-        #endif
-    }
-    
-    #if os(iOS)
-    @objc private func handleDoubleTap() {
-        // Cycle to next speed
-        currentSpeedIndex = (currentSpeedIndex + 1) % playbackSpeeds.count
-        let newSpeed = playbackSpeeds[currentSpeedIndex]
-        applyRate(newSpeed)
-        
-        // Show a brief notification of the new speed
-        showSpeedNotification(speed: newSpeed)
-    }
-    
-    private func showSpeedNotification(speed: Float) {
-        let alertController = UIAlertController(title: "Playback Speed", message: "\(speed)×", preferredStyle: .alert)
-        present(alertController, animated: true)
-        
-        // Dismiss after 1 second
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-            alertController.dismiss(animated: true)
+        speeds = playbackSpeeds.map { rate in
+            AVPlaybackSpeed(rate: rate, localizedName: rate == 1 ? "Normal" : "\(rate)×")
         }
     }
-    #endif
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
@@ -74,6 +43,14 @@ final class SkippingPlayerViewController: AVPlayerViewController {
         observeFivePercentRemaining()
         setupNowPlaying()
         observeAudioSessionNotifications()
+    }
+
+    override func viewDidDisappear(_ animated: Bool) {
+        super.viewDidDisappear(animated)
+        // Lets the video list refresh this video's watched state / progress
+        if isBeingDismissed, let watchedVideoID {
+            NotificationCenter.default.post(name: .playerDidClose, object: watchedVideoID)
+        }
     }
 
     override func viewWillDisappear(_ animated: Bool) {
@@ -94,68 +71,11 @@ final class SkippingPlayerViewController: AVPlayerViewController {
         removeAudioSessionNotifications()
     }
     
-    // MARK: - Custom Transport Bar Items
-    
-    private func setupCustomTransportBarItems() {
-        #if os(tvOS)
-        if #available(tvOS 14.0, *) {
-            // Create speed control menu
-            let speedMenu = createSpeedMenu()
-            
-            // Assign custom transport bar items
-            self.transportBarCustomMenuItems = [speedMenu]
-        }
-        #endif
-    }
-    
-    private func createSpeedMenu() -> UIMenu {
-        let speedActions = playbackSpeeds.enumerated().map { index, speed -> UIAction in
-            let isCurrentSpeed = index == currentSpeedIndex
-            let action = UIAction(
-                title: "\(speed)×",
-                image: isCurrentSpeed ? UIImage(systemName: "checkmark") : nil,
-                state: isCurrentSpeed ? .on : .off
-            ) { [weak self] _ in
-                self?.setPlaybackSpeed(speed, at: index)
-            }
-            return action
-        }
-        
-        return UIMenu(
-            title: "Speed",
-            image: UIImage(systemName: "speedometer"),
-            children: speedActions
-        )
-    }
-    
-    private func setPlaybackSpeed(_ speed: Float, at index: Int) {
-        guard let player = player else { return }
-        
-        // Update current speed index
-        currentSpeedIndex = index
-        
-        // Apply new speed
-        applyRate(speed)
-        
-        // Recreate the menu to update checkmarks
-        #if os(tvOS)
-        if #available(tvOS 14.0, *) {
-            let updatedMenu = createSpeedMenu()
-            self.transportBarCustomMenuItems = [updatedMenu]
-        }
-        #endif
-        
-        print("Playback speed changed to \(speed)×")
-    }
-    
-    /// Sets the rate and makes it stick: without defaultRate, play() (e.g. from Lock Screen
-    /// controls or after an interruption) silently resets playback to 1.0×
-    private func applyRate(_ speed: Float) {
+    /// Resumes playback at the speed picked in the speed menu. Plain play() would reset to 1.0×
+    /// when resuming from Lock Screen controls or after an interruption.
+    private func resumePlayback() {
         guard let player else { return }
-        player.defaultRate = speed
-        if player.rate != 0 {
-            player.rate = speed
-        }
+        player.playImmediately(atRate: selectedSpeed?.rate ?? 1)
     }
 
     // MARK: - Watch Progress Tracking
@@ -165,19 +85,21 @@ final class SkippingPlayerViewController: AVPlayerViewController {
         // Poll every half second
         let interval = CMTime(seconds: 0.5, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
         timeObserverToken = player.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] currentTime in
-            guard let self = self, !self.didTriggerWatched else { return }
+            guard let self = self else { return }
             let duration = item.duration.seconds
             let current = currentTime.seconds
             guard duration.isFinite, duration > 0 else { return }
-            self.syncProgressIfNeeded(current: current, duration: duration)
-            let remaining = duration - current
-            let tenPercent = duration * 0.10
-            let threshold = max(tenPercent, 30.0)
-            if remaining <= threshold {
-                self.didTriggerWatched = true
-                self.markWatched()
+            if !self.didTriggerWatched {
+                self.syncProgressIfNeeded(current: current, duration: duration)
+                let remaining = duration - current
+                let tenPercent = duration * 0.10
+                let threshold = max(tenPercent, 30.0)
+                if remaining <= threshold {
+                    self.didTriggerWatched = true
+                    self.markWatched()
+                }
             }
-            // Update Now Playing elapsed time
+            // Update Now Playing elapsed time (also after the video counts as watched)
             self.nowPlayingManager?.updateElapsedTime(currentTime: current,
                                                       duration: duration,
                                                       rate: self.player?.rate ?? 0)
@@ -272,27 +194,10 @@ final class SkippingPlayerViewController: AVPlayerViewController {
         }
     }
     
-    // MARK: - Remote Control (Skip Forward/Backward)
-
-    override func pressesEnded(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
-        #if os(tvOS)
-        guard let press = presses.first else {
-            super.pressesEnded(presses, with: event)
-            return
-        }
-
-        switch press.type {
-        case .leftArrow:
-            skip(by: -10)
-        case .rightArrow:
-            skip(by: 10)
-        default:
-            super.pressesEnded(presses, with: event)
-        }
-        #else
-        super.pressesEnded(presses, with: event)
-        #endif
-    }
+    // MARK: - Skip Forward/Backward
+    // On tvOS, clicking left/right to skip 10s is built into AVPlayerViewController (and the
+    // arrows scrub while paused), so there's no custom press handling. skip(by:) is used for
+    // the Lock Screen / Control Center commands.
 
     private func skip(by seconds: Double) {
         guard let player = player, player.currentItem != nil else { return }
@@ -311,11 +216,11 @@ final class SkippingPlayerViewController: AVPlayerViewController {
         let duration = player.currentItem?.duration.seconds
         nowPlayingManager = NowPlayingManager(
             player: player,
-            onPlay: { [weak self] in self?.player?.play() },
+            onPlay: { [weak self] in self?.resumePlayback() },
             onPause: { [weak self] in self?.player?.pause() },
             onToggle: { [weak self] in
                 guard let self = self else { return }
-                if self.player?.rate == 0 { self.player?.play() } else { self.player?.pause() }
+                if self.player?.rate == 0 { self.resumePlayback() } else { self.player?.pause() }
             },
             onSkipForward: { [weak self] in self?.skip(by: 10) },
             onSkipBackward: { [weak self] in self?.skip(by: -10) }
@@ -355,7 +260,7 @@ final class SkippingPlayerViewController: AVPlayerViewController {
             let optionsValue = info[AVAudioSessionInterruptionOptionKey] as? UInt
             let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue ?? 0)
             if options.contains(.shouldResume) {
-                player?.play()
+                resumePlayback()
             }
         @unknown default:
             break

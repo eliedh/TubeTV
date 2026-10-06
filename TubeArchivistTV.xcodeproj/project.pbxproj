@@ -6,7 +6,44 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		A1C0DE062EB0000000000001 /* TubeTVTopShelf.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = A1C0DE002EB0000000000001 /* TubeTVTopShelf.appex */; platformFilters = (tvos, ); settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		A1C0DE082EB0000000000001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 79FE67812EA53CA000BF947F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A1C0DE122EB0000000000001;
+			remoteInfo = TubeTVTopShelf;
+		};
+		A1C0DE102EB0000000000001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 79FE67812EA53CA000BF947F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 79FE67882EA53CA000BF947F;
+			remoteInfo = TubeArchivistTV;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		A1C0DE072EB0000000000001 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				A1C0DE062EB0000000000001 /* TubeTVTopShelf.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
+		A1C0DE002EB0000000000001 /* TubeTVTopShelf.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = TubeTVTopShelf.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		A1C0DE012EB0000000000001 /* TubeArchivistTVTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TubeArchivistTVTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		79FE67892EA53CA000BF947F /* TubeArchivistTV.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TubeArchivistTV.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -18,6 +55,21 @@
 			);
 			target = 79FE67882EA53CA000BF947F /* TubeArchivistTV */;
 		};
+		A1C0DE052EB0000000000001 /* Exceptions for "TubeArchivistTV" folder in "TubeTVTopShelf" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Configuration.swift,
+				Video.swift,
+			);
+			target = A1C0DE122EB0000000000001 /* TubeTVTopShelf */;
+		};
+		A1C0DE042EB0000000000001 /* Exceptions for "TubeTVTopShelf" folder in "TubeTVTopShelf" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = A1C0DE122EB0000000000001 /* TubeTVTopShelf */;
+		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -25,14 +77,42 @@
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				79FE67A02EA568FE00BF947F /* Exceptions for "TubeArchivistTV" folder in "TubeArchivistTV" target */,
+				A1C0DE052EB0000000000001 /* Exceptions for "TubeArchivistTV" folder in "TubeTVTopShelf" target */,
 			);
 			path = TubeArchivistTV;
+			sourceTree = "<group>";
+		};
+		A1C0DE032EB0000000000001 /* TubeArchivistTVTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = TubeArchivistTVTests;
+			sourceTree = "<group>";
+		};
+		A1C0DE022EB0000000000001 /* TubeTVTopShelf */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				A1C0DE042EB0000000000001 /* Exceptions for "TubeTVTopShelf" folder in "TubeTVTopShelf" target */,
+			);
+			path = TubeTVTopShelf;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		79FE67862EA53CA000BF947F /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A1C0DE152EB0000000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A1C0DE182EB0000000000001 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -46,6 +126,8 @@
 			isa = PBXGroup;
 			children = (
 				79FE678B2EA53CA000BF947F /* TubeArchivistTV */,
+				A1C0DE022EB0000000000001 /* TubeTVTopShelf */,
+				A1C0DE032EB0000000000001 /* TubeArchivistTVTests */,
 				79FE678A2EA53CA000BF947F /* Products */,
 			);
 			sourceTree = "<group>";
@@ -54,6 +136,8 @@
 			isa = PBXGroup;
 			children = (
 				79FE67892EA53CA000BF947F /* TubeArchivistTV.app */,
+				A1C0DE002EB0000000000001 /* TubeTVTopShelf.appex */,
+				A1C0DE012EB0000000000001 /* TubeArchivistTVTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -68,10 +152,12 @@
 				79FE67852EA53CA000BF947F /* Sources */,
 				79FE67862EA53CA000BF947F /* Frameworks */,
 				79FE67872EA53CA000BF947F /* Resources */,
+				A1C0DE072EB0000000000001 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				A1C0DE092EB0000000000001 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				79FE678B2EA53CA000BF947F /* TubeArchivistTV */,
@@ -82,6 +168,51 @@
 			productName = TubeArchivistTV;
 			productReference = 79FE67892EA53CA000BF947F /* TubeArchivistTV.app */;
 			productType = "com.apple.product-type.application";
+		};
+		A1C0DE132EB0000000000001 /* TubeArchivistTVTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A1C0DE232EB0000000000001 /* Build configuration list for PBXNativeTarget "TubeArchivistTVTests" */;
+			buildPhases = (
+				A1C0DE172EB0000000000001 /* Sources */,
+				A1C0DE182EB0000000000001 /* Frameworks */,
+				A1C0DE192EB0000000000001 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				A1C0DE112EB0000000000001 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				A1C0DE032EB0000000000001 /* TubeArchivistTVTests */,
+			);
+			name = TubeArchivistTVTests;
+			packageProductDependencies = (
+			);
+			productName = TubeArchivistTVTests;
+			productReference = A1C0DE012EB0000000000001 /* TubeArchivistTVTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		A1C0DE122EB0000000000001 /* TubeTVTopShelf */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A1C0DE202EB0000000000001 /* Build configuration list for PBXNativeTarget "TubeTVTopShelf" */;
+			buildPhases = (
+				A1C0DE142EB0000000000001 /* Sources */,
+				A1C0DE152EB0000000000001 /* Frameworks */,
+				A1C0DE162EB0000000000001 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				A1C0DE022EB0000000000001 /* TubeTVTopShelf */,
+			);
+			name = TubeTVTopShelf;
+			packageProductDependencies = (
+			);
+			productName = TubeTVTopShelf;
+			productReference = A1C0DE002EB0000000000001 /* TubeTVTopShelf.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -94,6 +225,13 @@
 				LastUpgradeCheck = 2600;
 				TargetAttributes = {
 					79FE67882EA53CA000BF947F = {
+						CreatedOnToolsVersion = 26.0.1;
+					};
+					A1C0DE132EB0000000000001 = {
+						CreatedOnToolsVersion = 26.0.1;
+						TestTargetID = 79FE67882EA53CA000BF947F;
+					};
+					A1C0DE122EB0000000000001 = {
 						CreatedOnToolsVersion = 26.0.1;
 					};
 				};
@@ -113,12 +251,28 @@
 			projectRoot = "";
 			targets = (
 				79FE67882EA53CA000BF947F /* TubeArchivistTV */,
+				A1C0DE122EB0000000000001 /* TubeTVTopShelf */,
+				A1C0DE132EB0000000000001 /* TubeArchivistTVTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		79FE67872EA53CA000BF947F /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A1C0DE162EB0000000000001 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A1C0DE192EB0000000000001 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -135,7 +289,35 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		A1C0DE142EB0000000000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A1C0DE172EB0000000000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		A1C0DE112EB0000000000001 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 79FE67882EA53CA000BF947F /* TubeArchivistTV */;
+			targetProxy = A1C0DE102EB0000000000001 /* PBXContainerItemProxy */;
+		};
+		A1C0DE092EB0000000000001 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			platformFilter = tvos;
+			target = A1C0DE122EB0000000000001 /* TubeTVTopShelf */;
+			targetProxy = A1C0DE082EB0000000000001 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		79FE67922EA53CA200BF947F /* Debug */ = {
@@ -264,6 +446,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Entitlements/TubeArchivistTV.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = K9RBUH9XU7;
@@ -302,6 +485,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Entitlements/TubeArchivistTV.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = K9RBUH9XU7;
@@ -335,6 +519,104 @@
 			};
 			name = Release;
 		};
+		A1C0DE212EB0000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = Entitlements/TubeTVTopShelf.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = K9RBUH9XU7;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = TubeTVTopShelf/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = TubeTVTopShelf;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = edh.TubeArchivistTV.TopShelf;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = appletvos;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 3;
+				TVOS_DEPLOYMENT_TARGET = 26.0;
+			};
+			name = Debug;
+		};
+		A1C0DE222EB0000000000001 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = Entitlements/TubeTVTopShelf.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = K9RBUH9XU7;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = TubeTVTopShelf/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = TubeTVTopShelf;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = edh.TubeArchivistTV.TopShelf;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = appletvos;
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 3;
+				TVOS_DEPLOYMENT_TARGET = 26.0;
+			};
+			name = Release;
+		};
+		A1C0DE242EB0000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = K9RBUH9XU7;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = edh.TubeArchivistTVTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "appletvos appletvsimulator iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2,3";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/TubeArchivistTV.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/TubeArchivistTV";
+				TVOS_DEPLOYMENT_TARGET = 26.0;
+			};
+			name = Debug;
+		};
+		A1C0DE252EB0000000000001 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = K9RBUH9XU7;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = edh.TubeArchivistTVTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "appletvos appletvsimulator iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2,3";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/TubeArchivistTV.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/TubeArchivistTV";
+				TVOS_DEPLOYMENT_TARGET = 26.0;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -352,6 +634,24 @@
 			buildConfigurations = (
 				79FE67952EA53CA200BF947F /* Debug */,
 				79FE67962EA53CA200BF947F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A1C0DE232EB0000000000001 /* Build configuration list for PBXNativeTarget "TubeArchivistTVTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A1C0DE242EB0000000000001 /* Debug */,
+				A1C0DE252EB0000000000001 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A1C0DE202EB0000000000001 /* Build configuration list for PBXNativeTarget "TubeTVTopShelf" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A1C0DE212EB0000000000001 /* Debug */,
+				A1C0DE222EB0000000000001 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

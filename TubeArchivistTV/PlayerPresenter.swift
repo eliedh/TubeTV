@@ -10,6 +10,11 @@ import AVKit
 import UIKit
 import AVFoundation
 
+extension Notification.Name {
+    /// Posted with the video ID as `object` when the full-screen player is dismissed
+    static let playerDidClose = Notification.Name("TubeTVPlayerDidClose")
+}
+
 enum PlayerPresenter {
     /// Presents a full-screen video player for the given video, preferring a downloaded copy
     static func present(video: Video) {
