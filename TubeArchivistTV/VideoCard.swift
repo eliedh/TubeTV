@@ -13,8 +13,7 @@ struct VideoCard: View {
     let showDownloadStatus: Bool
     let onTap: () -> Void
     
-    @StateObject private var downloadManager = DownloadManager.shared
-    @State private var showDownloadOptions = false
+    @ObservedObject private var downloadManager = DownloadManager.shared
     
     init(video: Video, isSelected: Bool, showDownloadStatus: Bool = false, onTap: @escaping () -> Void) {
         self.video = video
@@ -28,19 +27,18 @@ struct VideoCard: View {
             VStack(spacing: cardSpacing) {
                 // Thumbnail
                 ZStack(alignment: .bottomTrailing) {
-                    AsyncImage(url: URL(string: video.derivedThumbnailURLString ?? "")) { phase in
-                        switch phase {
-                        case .empty:
-                            ProgressView()
-                                .frame(width: thumbnailSize.width, height: thumbnailSize.height)
-                        case .success(let image):
-                            image
-                                .resizable()
-                                .scaledToFill()
-                        case .failure:
-                            Color.red
-                        @unknown default:
-                            Color.gray
+                    AuthorizedImage(url: thumbnailURL) { image in
+                        image
+                            .resizable()
+                            .scaledToFill()
+                    } placeholder: {
+                        ProgressView()
+                            .frame(width: thumbnailSize.width, height: thumbnailSize.height)
+                    } failure: {
+                        ZStack {
+                            Color(white: 0.2)
+                            Image(systemName: "photo")
+                                .foregroundColor(.gray)
                         }
                     }
                     .frame(width: thumbnailSize.width, height: thumbnailSize.height)
@@ -80,6 +78,8 @@ struct VideoCard: View {
                         downloadStatusBadge
                     } else if let progress = downloadManager.downloadProgress[video.youtubeID ?? ""] {
                         downloadProgressView(progress: progress)
+                    } else if downloadManager.failedDownloads[video.youtubeID ?? ""] != nil {
+                        downloadFailedBadge
                     } else if video.isPartiallyWatched {
                         resumeBadge
                     }
@@ -147,6 +147,19 @@ struct VideoCard: View {
     }
     
     @ViewBuilder
+    private var downloadFailedBadge: some View {
+        ZStack {
+            Circle()
+                .fill(Color.red.opacity(0.9))
+            Image(systemName: "exclamationmark")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundColor(.white)
+        }
+        .frame(width: 32, height: 32)
+        .padding(6)
+    }
+    
+    @ViewBuilder
     private func downloadProgressView(progress: Double) -> some View {
         ZStack {
             Circle()
@@ -175,103 +188,38 @@ struct VideoCard: View {
                     Label("Cancel Download", systemImage: "xmark.circle")
                 }
             } else {
+                if let reason = downloadManager.failedDownloads[videoID] {
+                    Text("Last download failed: \(reason)")
+                }
                 Button {
                     downloadManager.downloadVideo(video)
                 } label: {
-                    Label("Download for Offline", systemImage: "arrow.down.circle")
+                    Label(downloadManager.failedDownloads[videoID] == nil ? "Download for Offline" : "Retry Download",
+                          systemImage: "arrow.down.circle")
                 }
             }
         }
     }
     #endif
     
+    /// Prefer the thumbnail saved alongside a download so the Downloads tab works offline
+    private var thumbnailURL: URL? {
+        if let videoID = video.canonicalVideoID,
+           let localURL = downloadManager.localThumbnailURL(for: videoID) {
+            return localURL
+        }
+        return video.thumbnailURL
+    }
+    
     // MARK: - Platform-specific properties
     
-    private var thumbnailSize: CGSize {
-        #if os(tvOS)
-        CGSize(width: 400, height: 225)
-        #else
-        if UIDevice.current.userInterfaceIdiom == .pad {
-            // iPad: Larger than iPhone but smaller than tvOS
-            CGSize(width: 240, height: 135)
-        } else {
-            // iPhone: Compact size
-            CGSize(width: 160, height: 90)
-        }
-        #endif
-    }
-    
-    private var cardSpacing: CGFloat {
-        #if os(tvOS)
-        12
-        #else
-        if UIDevice.current.userInterfaceIdiom == .pad {
-            10  // iPad: between tvOS and iPhone
-        } else {
-            8   // iPhone
-        }
-        #endif
-    }
-    
-    private var cardPadding: CGFloat {
-        #if os(tvOS)
-        16
-        #else
-        if UIDevice.current.userInterfaceIdiom == .pad {
-            12  // iPad: between tvOS and iPhone
-        } else {
-            8   // iPhone
-        }
-        #endif
-    }
-    
-    private var cornerRadius: CGFloat {
-        #if os(tvOS)
-        16
-        #else
-        if UIDevice.current.userInterfaceIdiom == .pad {
-            14  // iPad: between tvOS and iPhone
-        } else {
-            12  // iPhone
-        }
-        #endif
-    }
-    
-    private var shadowRadius: CGFloat {
-        #if os(tvOS)
-        8
-        #else
-        if UIDevice.current.userInterfaceIdiom == .pad {
-            6  // iPad: between tvOS and iPhone
-        } else {
-            4  // iPhone
-        }
-        #endif
-    }
-    
-    private var titleFont: Font {
-        #if os(tvOS)
-        .headline
-        #else
-        if UIDevice.current.userInterfaceIdiom == .pad {
-            .subheadline  // iPad: between tvOS and iPhone
-        } else {
-            .caption      // iPhone
-        }
-        #endif
-    }
-    
-    private var titleLineLimit: Int {
-        #if os(tvOS)
-        2
-        #else
-        if UIDevice.current.userInterfaceIdiom == .pad {
-            2  // iPad: same as tvOS for better readability
-        } else {
-            3  // iPhone: more lines for smaller text
-        }
-        #endif
-    }
+    private var thumbnailSize: CGSize { Layout.thumbnailSize }
+    private var cardSpacing: CGFloat { Layout.cardSpacing }
+    private var cardPadding: CGFloat { Layout.cardPadding }
+    private var cornerRadius: CGFloat { Layout.cornerRadius }
+    private var shadowRadius: CGFloat { Layout.shadowRadius }
+    private var titleFont: Font { Layout.cardTitleFont }
+    private var titleLineLimit: Int { Layout.cardTitleLineLimit }
     
     private var backgroundColor: Color {
         #if os(tvOS)

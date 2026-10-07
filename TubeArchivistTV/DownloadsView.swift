@@ -6,32 +6,23 @@
 import SwiftUI
 
 struct DownloadsView: View {
-    @StateObject private var api = APIService()
-    @StateObject private var downloadManager = DownloadManager.shared
+    @ObservedObject private var downloadManager = DownloadManager.shared
     @EnvironmentObject var settings: AppSettings
     @State private var selectedVideoID: String?
-    
-    private var columns: [GridItem] {
-        if UIDevice.current.userInterfaceIdiom == .pad {
-            // iPad: 3 columns
-            [
-                GridItem(.flexible(), spacing: 16),
-                GridItem(.flexible(), spacing: 16),
-                GridItem(.flexible(), spacing: 16)
-            ]
-        } else {
-            // iPhone: 2 columns
-            [
-                GridItem(.flexible(), spacing: 12),
-                GridItem(.flexible(), spacing: 12)
-            ]
-        }
+    @State private var pendingBulkDelete: BulkDelete?
+    @AppStorage(DownloadManager.wifiOnlyDefaultsKey) private var wifiOnly = false
+
+    private enum BulkDelete: Identifiable {
+        case watched, all
+        var id: Self { self }
     }
-    
+
+    /// Comes from metadata stored with each download, so this works offline and
+    /// isn't limited to whatever happens to be on the first page of the library
     private var downloadedVideos: [Video] {
-        downloadManager.getDownloadedVideos(from: api.videos)
+        downloadManager.downloadedVideoList
     }
-    
+
     var body: some View {
         NavigationView {
             Group {
@@ -39,7 +30,8 @@ struct DownloadsView: View {
                     emptyState
                 } else {
                     ScrollView {
-                        VStack(spacing: platformSpacing) {
+                        VStack(spacing: Layout.sectionSpacing) {
+                            storageSummary
                             videoGrid
                         }
                         .padding()
@@ -48,34 +40,93 @@ struct DownloadsView: View {
             }
             .background(Color.black.edgesIgnoringSafeArea(.all))
             .navigationTitle("Downloads")
-            .onAppear {
-                // Fetch videos to match with downloaded IDs
-                if api.videos.isEmpty {
-                    api.fetchVideos(unwatchedOnly: false, sortByDownloaded: false)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    manageMenu
                 }
+            }
+            .confirmationDialog(
+                confirmationTitle,
+                isPresented: Binding(
+                    get: { pendingBulkDelete != nil },
+                    set: { if !$0 { pendingBulkDelete = nil } }
+                ),
+                titleVisibility: .visible,
+                presenting: pendingBulkDelete
+            ) { action in
+                Button("Delete", role: .destructive) {
+                    switch action {
+                    case .watched: downloadManager.deleteWatchedVideos()
+                    case .all: downloadManager.deleteAllVideos()
+                    }
+                }
+                Button("Cancel", role: .cancel) {}
             }
         }
         .navigationViewStyle(StackNavigationViewStyle())
     }
-    
-    private var platformSpacing: CGFloat {
-        if UIDevice.current.userInterfaceIdiom == .pad {
-            18  // iPad
-        } else {
-            16  // iPhone
+
+    private var storageSummary: some View {
+        HStack {
+            Image(systemName: "internaldrive")
+            Text("\(downloadedVideos.count) \(downloadedVideos.count == 1 ? "video" : "videos") · \(formattedStorage)")
+            Spacer()
+            if wifiOnly {
+                Label("Wi-Fi only", systemImage: "wifi")
+                    .labelStyle(.titleAndIcon)
+            }
+        }
+        .font(.subheadline)
+        .foregroundColor(.gray)
+    }
+
+    private var formattedStorage: String {
+        ByteCountFormatter.string(fromByteCount: downloadManager.storageUsed, countStyle: .file)
+    }
+
+    private var manageMenu: some View {
+        Menu {
+            Button(role: .destructive) {
+                pendingBulkDelete = .watched
+            } label: {
+                Label("Delete Watched (\(downloadManager.watchedDownloadIDs.count))", systemImage: "eye")
+            }
+            .disabled(downloadManager.watchedDownloadIDs.isEmpty)
+
+            Button(role: .destructive) {
+                pendingBulkDelete = .all
+            } label: {
+                Label("Delete All Downloads", systemImage: "trash")
+            }
+            .disabled(downloadedVideos.isEmpty)
+        } label: {
+            Image(systemName: "ellipsis.circle")
+                .font(.title2)
         }
     }
-    
+
+    private var confirmationTitle: String {
+        switch pendingBulkDelete {
+        case .watched:
+            let count = downloadManager.watchedDownloadIDs.count
+            return "Delete \(count) watched \(count == 1 ? "download" : "downloads")?"
+        case .all:
+            return "Delete all downloads (\(formattedStorage))?"
+        case nil:
+            return ""
+        }
+    }
+
     private var emptyState: some View {
         VStack(spacing: 20) {
             Image(systemName: "arrow.down.circle")
                 .font(.system(size: 60))
                 .foregroundColor(.gray)
-            
+
             Text("No Downloaded Videos")
                 .font(.title2)
                 .foregroundColor(.white)
-            
+
             Text("Long press on any video to download it for offline viewing")
                 .font(.subheadline)
                 .foregroundColor(.gray)
@@ -83,39 +134,20 @@ struct DownloadsView: View {
                 .padding(.horizontal, 40)
         }
     }
-    
+
     private var videoGrid: some View {
-        LazyVGrid(columns: columns, spacing: gridSpacing) {
+        LazyVGrid(columns: Layout.gridColumns, spacing: Layout.gridSpacing) {
             ForEach(downloadedVideos) { video in
                 VideoCard(
                     video: video,
                     isSelected: selectedVideoID == (video.youtubeID ?? video.id),
                     showDownloadStatus: true
                 ) {
-                    handleVideoTap(video)
+                    // PlayerPresenter plays the local file when one exists
+                    PlayerPresenter.present(video: video)
+                    selectedVideoID = video.youtubeID ?? video.id
                 }
             }
-        }
-    }
-    
-    private var gridSpacing: CGFloat {
-        if UIDevice.current.userInterfaceIdiom == .pad {
-            24  // iPad
-        } else {
-            16  // iPhone
-        }
-    }
-    
-    private func handleVideoTap(_ video: Video) {
-        // Play from local storage if downloaded
-        if let videoID = video.youtubeID,
-           let localURL = downloadManager.localURL(for: videoID) {
-            PlayerPresenter.presentLocal(video: video, url: localURL)
-            selectedVideoID = videoID
-        } else {
-            // Fallback to streaming if somehow the file is missing
-            PlayerPresenter.present(video: video)
-            selectedVideoID = video.youtubeID ?? video.id
         }
     }
 }

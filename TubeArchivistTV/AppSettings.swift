@@ -15,37 +15,41 @@ class AppSettings: ObservableObject {
     
     private var cancellables = Set<AnyCancellable>()
     
+    private let defaults = Configuration.sharedDefaults
+    
     init() {
-        // Load from UserDefaults
-        self.serverURL = UserDefaults.standard.string(forKey: "serverURL") ?? ""
-        self.apiToken = UserDefaults.standard.string(forKey: "apiToken") ?? ""
-        self.isConfigured = UserDefaults.standard.bool(forKey: "isConfigured")
+        Configuration.migrateSettingsToSharedDefaultsIfNeeded()
+        
+        // Load from the shared (App Group) defaults
+        self.serverURL = defaults.string(forKey: "serverURL") ?? ""
+        self.apiToken = defaults.string(forKey: "apiToken") ?? ""
+        self.isConfigured = defaults.bool(forKey: "isConfigured")
         
         // Observe changes and save to UserDefaults
         $serverURL
             .dropFirst() // Skip initial value
-            .sink { newValue in
-                UserDefaults.standard.set(newValue, forKey: "serverURL")
+            .sink { [defaults] newValue in
+                defaults.set(newValue, forKey: "serverURL")
             }
             .store(in: &cancellables)
         
         $apiToken
             .dropFirst()
-            .sink { newValue in
-                UserDefaults.standard.set(newValue, forKey: "apiToken")
+            .sink { [defaults] newValue in
+                defaults.set(newValue, forKey: "apiToken")
             }
             .store(in: &cancellables)
         
         $isConfigured
             .dropFirst()
-            .sink { newValue in
-                UserDefaults.standard.set(newValue, forKey: "isConfigured")
+            .sink { [defaults] newValue in
+                defaults.set(newValue, forKey: "isConfigured")
             }
             .store(in: &cancellables)
     }
     
     func saveSettings(serverURL: String, apiToken: String) {
-        self.serverURL = serverURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.serverURL = Configuration.normalizeServerURL(serverURL)
         self.apiToken = apiToken.trimmingCharacters(in: .whitespacesAndNewlines)
         self.isConfigured = true
     }

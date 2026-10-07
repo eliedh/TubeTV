@@ -14,6 +14,9 @@ struct SettingsView: View {
     @State private var isTestingConnection = false
     @State private var testResult: TestResult?
     @Environment(\.dismiss) private var dismiss
+    #if os(iOS)
+    @AppStorage(DownloadManager.wifiOnlyDefaultsKey) private var downloadsWiFiOnly = false
+    #endif
     
     init(settings: AppSettings) {
         self.settings = settings
@@ -44,7 +47,7 @@ struct SettingsView: View {
                         Text("API Token")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
-                        TextField("Your API token", text: $apiToken)
+                        SecureField("Your API token", text: $apiToken)
                             .textContentType(.password)
                             .autocapitalization(.none)
                             .disableAutocorrection(true)
@@ -96,6 +99,15 @@ struct SettingsView: View {
                     }
                 }
                 
+                #if os(iOS)
+                Section(
+                    header: Text("Downloads").font(.headline),
+                    footer: Text("When on, new downloads wait for Wi-Fi instead of using cellular data.")
+                ) {
+                    Toggle("Download over Wi-Fi only", isOn: $downloadsWiFiOnly)
+                }
+                #endif
+                
                 Section {
                     Button(action: saveSettings) {
                         HStack {
@@ -144,10 +156,10 @@ struct SettingsView: View {
         isTestingConnection = true
         testResult = nil
         
-        let trimmedURL = serverURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedURL = Configuration.normalizeServerURL(serverURL)
         let trimmedToken = apiToken.trimmingCharacters(in: .whitespacesAndNewlines)
         
-        guard let url = URL(string: "\(trimmedURL)/api/ping/") else {
+        guard let url = URL(string: "\(trimmedURL)/api/ping/"), url.host != nil else {
             testResult = .failure("Invalid server URL")
             isTestingConnection = false
             return
@@ -172,7 +184,14 @@ struct SettingsView: View {
                 }
                 
                 guard httpResponse.statusCode == 200 else {
-                    testResult = .failure("HTTP \(httpResponse.statusCode)")
+                    switch httpResponse.statusCode {
+                    case 401, 403:
+                        testResult = .failure("HTTP \(httpResponse.statusCode): the API token was rejected")
+                    case 404:
+                        testResult = .failure("HTTP 404: no TubeArchivist API at this URL")
+                    default:
+                        testResult = .failure("HTTP \(httpResponse.statusCode)")
+                    }
                     return
                 }
                 

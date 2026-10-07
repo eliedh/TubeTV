@@ -36,14 +36,15 @@ This is a lightweight SwiftUI app developed primarily using AI code generation t
 - **Sort toggle**: Easily switch between sorting by download date (newest downloads first) or published date
 - **Continue Watching filter** - Toggle to show only videos you've started watching, sorted by progress
 - **Adaptive grid layout** - 3 columns on Apple TV and iPad, 2 columns on iPhone
-- **Video thumbnails** with titles (always from YouTube CDN)
+- **Video thumbnails** with titles, loaded from your TubeArchivist server (authenticated with your API token) and cached on device
 - **Watched status indicators** - dimmed thumbnails for watched videos with overlay effects
 - **Progress indicators** on in-progress videos:
   - **Progress bar**: Visual blue progress bar at bottom of thumbnail showing watch percentage
   - **Resume badge**: Orange play icon appears on videos you've partially watched
   - **Highlighted cards**: In-progress videos have a warmer background color for easy identification
 - **Unwatched filter** - toggle to show only unwatched content
-- **Pagination** - load more videos as you scroll through your archive
+- **Infinite scroll** - the next page loads automatically as you approach the end of the list
+- **Live updates** - after closing the player, that video's watched state and progress refresh in place (no full reload, scroll position kept)
 - **Pull-to-refresh** (iPhone & iPad) - native gesture to reload the video list
 - **Refresh button** (tvOS & iPad) - alternate refresh control
 
@@ -51,26 +52,26 @@ This is a lightweight SwiftUI app developed primarily using AI code generation t
 - **Full-screen playback** with native player controls
 - **Automatic resume** - Videos resume from your last watched position automatically
 - **Background progress sync** - Playback position syncs to server every 15 seconds during playback
-- **Playback speed control**:
-  - **Apple TV**: Menu-based speed selection (0.5×, 0.75×, 1.0×, 1.25×, 1.5×, 2.0×)
-  - **iPhone/iPad**: Double-tap to cycle through speeds with visual feedback
-- **Skip controls** (Apple TV only) - Left/Right arrows to skip 10 seconds
+- **Playback speed control** in the system player's speed menu on all platforms (0.5×, 0.75×, 1.0×, 1.25×, 1.5×, 2.0×); the chosen speed sticks when resuming from Lock Screen controls
+- **Skip controls** (Apple TV) - the system player's built-in click left/right to skip 10 seconds
 - **Auto-mark as watched** - automatically updates when 10% or 30 seconds remain (whichever is longer)
 - **Reliable sync**: Watched status and progress updates retry automatically if network fails
 
 ### Offline Downloads (iPhone & iPad)
 - **Long-press to download** any video for offline viewing
 - **Background downloads** with on-card progress indicator and percentage
-- **Downloads tab** shows only videos available offline
-- **Local playback** from device storage with automatic fallback to streaming if the file is missing
-- **Manage downloads** via long-press: Cancel active downloads or Delete completed ones
-- **Storage location**: Saved under app Cache at `Caches/VideoDownloads/` (persists across launches; iOS may purge cache under storage pressure)
-- **Network**: Downloads allowed on both Wi‑Fi and cellular
+- **Downloads tab** shows every video available offline (metadata and thumbnails are stored with the download, so it works without a connection)
+- **Local playback** from device storage, from either tab, with automatic fallback to streaming if the file is missing
+- **Offline resume**: resume position is kept locally and synced to the server when back online
+- **Manage downloads** via long-press: Cancel active downloads, Delete completed ones, or Retry failed ones (marked with a red badge)
+- **Storage overview** in the Downloads tab, plus bulk **Delete Watched** / **Delete All** from the ⋯ menu
+- **Storage location**: Saved under `Application Support/VideoDownloads/` (excluded from iCloud backup, not purged by iOS under storage pressure). Downloads from older versions in `Caches/` are migrated automatically
+- **Network**: Wi‑Fi and cellular by default; enable **Download over Wi‑Fi only** in Settings to make downloads wait for Wi‑Fi
 
 ### Podcast Mode (Background Audio, iPhone & iPad)
 - **Keep listening with the screen locked** or when you switch apps
 - **Lock Screen & Control Center controls**: Play/Pause and Skip ±10s
-- **Now Playing metadata**: title, artwork (YouTube thumbnail), duration, and live progress
+- **Now Playing metadata**: title, artwork, duration, and live progress
 - **Works for both streaming and downloads**
 - **AirPlay & Bluetooth** supported
 - Note: tvOS remains unchanged (no background audio on Apple TV)
@@ -78,9 +79,10 @@ This is a lightweight SwiftUI app developed primarily using AI code generation t
 ### Platform-Specific Features
 
 #### Apple TV
-- **Remote Controls**: Arrow keys for skipping, Menu button to exit
+- **Top Shelf**: "Continue Watching" and "Recently Added" rows on the Apple TV home screen; selecting one opens and plays the video
+- **Remote Controls**: Click left/right to skip, Menu button to exit
 - **Focus-based navigation** optimized for remote control
-- **Transport bar integration** for speed control
+- **Transport bar** speed menu
 - **Larger thumbnails** for big screen viewing
 
 #### iPad
@@ -118,6 +120,14 @@ This is a lightweight SwiftUI app developed primarily using AI code generation t
 
 Settings are persisted between app sessions and can be changed anytime from the settings button (gear icon) in the navigation bar.
 
+### App Group (for the Top Shelf extension)
+
+The app and its Top Shelf extension share server settings through the App Group `group.edh.TubeArchivistTV` (see `Entitlements/`). With automatic signing Xcode registers it for your team on the first device build. If you use a different bundle identifier or team, change the group ID in both entitlements files and in `Configuration.appGroupID`.
+
+## Tests
+
+Unit tests live in `TubeArchivistTVTests/` (Swift Testing) and cover JSON decoding, pagination, URL normalization and playback-state logic. Run them with **Product › Test** (⌘U) in Xcode.
+
 ## Requirements
 
 - **Xcode 13.0+**
@@ -152,7 +162,7 @@ This app was built to solve specific use cases and may not include features you'
 - No search functionality (yet)
 - No channel/playlist browsing
 - Basic download management only (no bulk actions, scheduling, or queue reordering)
-- "Continue Watching" filtering is client-side only (doesn't use server-side watch filter)
+- "Continue Watching" filtering is client-side only (scans up to 10 pages at a time for in-progress videos)
 
 Feel free to fork and extend it for your own needs!
 
@@ -163,7 +173,8 @@ Feel free to fork and extend it for your own needs!
 - **URLSession** for API communication with centralized auth
 - **Actors** for thread-safe progress sync and watched-status queuing
 - **Combine** for reactive state management and error handling
-- **Conditional compilation** for platform-specific optimizations
+- **Conditional compilation** for platform-specific optimizations, with per-device sizing centralized in `Layout.swift`
+- **TVServices** Top Shelf extension sharing model code with the app
 - **UserDefaults** for persistent retry queues and configuration
 - Developed with heavy assistance from AI code generation tools
 

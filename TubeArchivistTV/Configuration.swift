@@ -21,21 +21,58 @@ struct AppConfigurationSnapshot {
 }
 
 enum Configuration {
+    // MARK: - Shared Storage
+
+    /// App Group shared with the Top Shelf extension so it can reach the server too
+    static let appGroupID = "group.edh.TubeArchivistTV"
+
+    /// Settings storage shared between the app and its extensions
+    static let sharedDefaults: UserDefaults = UserDefaults(suiteName: appGroupID) ?? .standard
+
+    /// Copies settings saved by earlier versions (in standard defaults) into the shared App Group
+    static func migrateSettingsToSharedDefaultsIfNeeded() {
+        let standard = UserDefaults.standard
+        guard sharedDefaults !== standard,
+              sharedDefaults.string(forKey: "serverURL") == nil,
+              let serverURL = standard.string(forKey: "serverURL") else { return }
+        sharedDefaults.set(serverURL, forKey: "serverURL")
+        sharedDefaults.set(standard.string(forKey: "apiToken"), forKey: "apiToken")
+        sharedDefaults.set(standard.bool(forKey: "isConfigured"), forKey: "isConfigured")
+    }
+
     // MARK: - Server Configuration
 
     static var current: AppConfigurationSnapshot {
         AppConfigurationSnapshot(baseURL: baseURL, apiToken: apiToken)
     }
     
-    /// Server base URL from UserDefaults, with trailing slash removed
+    /// Server base URL from UserDefaults, normalized (scheme added, trailing slashes removed)
     static var baseURL: String {
-        let url = UserDefaults.standard.string(forKey: "serverURL") ?? ""
-        return url.hasSuffix("/") ? String(url.dropLast()) : url
+        normalizeServerURL(sharedDefaults.string(forKey: "serverURL") ?? "")
+    }
+
+    /// Trims whitespace, strips trailing slashes and defaults to http:// when no scheme was entered
+    static func normalizeServerURL(_ rawValue: String) -> String {
+        var url = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !url.isEmpty else { return "" }
+        if !url.lowercased().hasPrefix("http://") && !url.lowercased().hasPrefix("https://") {
+            url = "http://" + url
+        }
+        while url.hasSuffix("/") {
+            url.removeLast()
+        }
+        return url
+    }
+
+    /// True when the URL points at the configured TubeArchivist server (so it may receive the API token)
+    static func isServerURL(_ url: URL) -> Bool {
+        guard let server = URL(string: baseURL), let serverHost = server.host else { return false }
+        return url.host == serverHost && url.port == server.port && url.scheme == server.scheme
     }
     
     /// API token from UserDefaults
     static var apiToken: String {
-        UserDefaults.standard.string(forKey: "apiToken") ?? ""
+        sharedDefaults.string(forKey: "apiToken") ?? ""
     }
     
     // MARK: - API Endpoints
@@ -49,6 +86,10 @@ enum Configuration {
 
     static var watchedURL: URL? {
         URL(string: watchedEndpoint)
+    }
+
+    static func videoDetailURL(videoID: String) -> URL? {
+        URL(string: "\(apiBaseURL)/video/\(videoID)/")
     }
 
     static func videoProgressURL(videoID: String) -> URL? {
@@ -87,10 +128,5 @@ enum Configuration {
         }
 
         return request
-    }
-    
-    // MARK: - Thumbnail Configuration
-    static var thumbnailBaseURL: String {
-        baseURL
     }
 }

@@ -1,5 +1,8 @@
 import Foundation
 import Combine
+#if os(tvOS)
+import TVServices
+#endif
 
 enum APIServiceError: LocalizedError {
     case missingConfiguration
@@ -41,6 +44,8 @@ class APIService: ObservableObject {
     private(set) var lastUnwatchedOnly: Bool = false
     private(set) var lastSortByDownloaded: Bool = true
     private(set) var lastContinueWatching: Bool = false
+    /// Bumped on every reload so results from superseded requests are discarded
+    private var loadGeneration = 0
 
     // MARK: - Public Methods
 
@@ -51,7 +56,9 @@ class APIService: ObservableObject {
     }
 
     func reloadVideos(unwatchedOnly: Bool = false, sortByDownloaded: Bool = true, continueWatching: Bool = false) async {
-        guard !isLoading else { return }
+        // A newer request (e.g. toggling another filter mid-load) supersedes the in-flight one
+        loadGeneration += 1
+        let generation = loadGeneration
 
         // Reset for new fetch
         currentPage = 1
@@ -63,7 +70,9 @@ class APIService: ObservableObject {
         isLoading = true
 
         defer {
-            isLoading = false
+            if generation == loadGeneration {
+                isLoading = false
+            }
         }
 
         do {
@@ -71,23 +80,26 @@ class APIService: ObservableObject {
             await VideoProgressSync.shared.flushPending()
             await WatchedStateSync.shared.flushPending()
 
-            guard let url = Configuration.videoURL(page: 1, unwatchedOnly: unwatchedOnly, sortByDownloaded: sortByDownloaded) else {
-                throw APIServiceError.invalidURL
-            }
+            let page = try await fetchFilteredPage(startingAt: 1)
+            guard generation == loadGeneration else { return }
+            var filteredVideos = page.videos
 
-            let response = try await performRequest(url: url)
-            var filteredVideos = response.data
-            
-            // Apply client-side filter for continue watching
             if continueWatching {
-                filteredVideos = filteredVideos.filter { $0.isPartiallyWatched }
                 // Sort by progress (highest first)
                 filteredVideos.sort { ($0.progress ?? 0) > ($1.progress ?? 0) }
             }
-            
+
+            PlaybackStateStore.shared.reset()
+            DownloadManager.shared.backfillMetadata(from: filteredVideos)
             videos = filteredVideos
-            hasMorePages = !filteredVideos.isEmpty
+            currentPage = page.lastFetchedPage
+            hasMorePages = page.hasMorePages
+            #if os(tvOS)
+            // Let the Top Shelf extension pick up new videos / progress
+            TVTopShelfContentProvider.topShelfContentDidChange()
+            #endif
         } catch {
+            guard generation == loadGeneration else { return }
             videos = []
             hasMorePages = false
             errorMessage = describe(error)
@@ -104,11 +116,49 @@ class APIService: ObservableObject {
         errorMessage = nil
     }
 
+    /// Re-fetches one video after playback so its watched state and progress are current,
+    /// without reloading (and losing the scroll position of) the whole list
+    func refreshVideo(videoID: String) async {
+        guard let index = videos.firstIndex(where: { $0.canonicalVideoID == videoID }) else { return }
+
+        // Show what we know locally right away (works offline too)
+        videos[index] = PlaybackStateStore.shared.applyLocalState(to: videos[index])
+
+        await VideoProgressSync.shared.flushPending()
+        await WatchedStateSync.shared.flushPending()
+        guard var updated = try? await Self.fetchVideo(videoID: videoID) else { return }
+        // A progress sync may still be in flight; local state from this session wins
+        updated = PlaybackStateStore.shared.applyLocalState(to: updated)
+
+        guard let currentIndex = videos.firstIndex(where: { $0.canonicalVideoID == videoID }) else { return }
+        if lastContinueWatching && !updated.isPartiallyWatched {
+            videos.remove(at: currentIndex)
+        } else {
+            videos[currentIndex] = updated
+        }
+    }
+
+    /// Fetches a single video from `/api/video/<id>/`
+    static func fetchVideo(videoID: String) async throws -> Video {
+        guard Configuration.current.isComplete else { throw APIServiceError.missingConfiguration }
+        guard let url = Configuration.videoDetailURL(videoID: videoID) else { throw APIServiceError.invalidURL }
+
+        let (data, response) = try await URLSession.shared.data(for: Configuration.makeAuthorizedRequest(url: url))
+        guard let httpResponse = response as? HTTPURLResponse else { throw APIServiceError.invalidResponse }
+        guard (200...299).contains(httpResponse.statusCode) else { throw APIServiceError.httpStatus(httpResponse.statusCode) }
+        do {
+            return try JSONDecoder().decode(Video.self, from: data)
+        } catch {
+            throw APIServiceError.decodingFailed
+        }
+    }
+
     // MARK: - Private Methods
 
     private func loadMoreVideosIfNeeded() async {
         guard hasMorePages, !isLoading, !isLoadingMore else { return }
         let nextPage = currentPage + 1
+        let generation = loadGeneration
         errorMessage = nil
         isLoadingMore = true
 
@@ -121,27 +171,40 @@ class APIService: ObservableObject {
             await VideoProgressSync.shared.flushPending()
             await WatchedStateSync.shared.flushPending()
 
-            guard let url = Configuration.videoURL(page: nextPage, unwatchedOnly: lastUnwatchedOnly, sortByDownloaded: lastSortByDownloaded) else {
+            let page = try await fetchFilteredPage(startingAt: nextPage)
+            guard generation == loadGeneration else { return }
+            DownloadManager.shared.backfillMetadata(from: page.videos)
+            videos.append(contentsOf: page.videos)
+            currentPage = page.lastFetchedPage
+            hasMorePages = page.hasMorePages
+        } catch {
+            guard generation == loadGeneration else { return }
+            errorMessage = describe(error)
+        }
+    }
+
+    /// Fetches a page and applies the client-side "continue watching" filter. When the filter
+    /// leaves a page empty, keeps going (up to a limit) so the list doesn't look empty just
+    /// because the first page had no in-progress videos.
+    private func fetchFilteredPage(startingAt startPage: Int) async throws -> (videos: [Video], lastFetchedPage: Int, hasMorePages: Bool) {
+        let maxPagesPerFetch = lastContinueWatching ? 10 : 1
+        var page = startPage
+        var collected: [Video] = []
+
+        while true {
+            guard let url = Configuration.videoURL(page: page, unwatchedOnly: lastUnwatchedOnly, sortByDownloaded: lastSortByDownloaded) else {
                 throw APIServiceError.invalidURL
             }
 
             let response = try await performRequest(url: url)
-            if !response.data.isEmpty {
-                var newVideos = response.data
-                
-                // Apply client-side filter for continue watching
-                if lastContinueWatching {
-                    newVideos = newVideos.filter { $0.isPartiallyWatched }
-                }
-                
-                videos.append(contentsOf: newVideos)
-                currentPage = nextPage
-                hasMorePages = !newVideos.isEmpty
-            } else {
-                hasMorePages = false
+            let pageVideos = lastContinueWatching ? response.data.filter { $0.isPartiallyWatched } : response.data
+            collected.append(contentsOf: pageVideos)
+
+            let morePages = response.hasMorePages && !response.data.isEmpty
+            if !collected.isEmpty || !morePages || page - startPage + 1 >= maxPagesPerFetch {
+                return (collected, page, morePages)
             }
-        } catch {
-            errorMessage = describe(error)
+            page += 1
         }
     }
 
@@ -152,6 +215,14 @@ class APIService: ObservableObject {
             let (data, response) = try await URLSession.shared.data(for: request)
             guard let httpResponse = response as? HTTPURLResponse else {
                 throw APIServiceError.invalidResponse
+            }
+
+            // TubeArchivist answers 404 (with a normal JSON body) when a query has no results,
+            // e.g. a filter that matches nothing. Treat that as an empty page, but keep a 404
+            // without that body (wrong server URL) as an error.
+            if httpResponse.statusCode == 404,
+               let emptyPage = try? JSONDecoder().decode(VideoResponse.self, from: data) {
+                return emptyPage
             }
 
             guard (200...299).contains(httpResponse.statusCode) else {
@@ -165,6 +236,7 @@ class APIService: ObservableObject {
             do {
                 return try JSONDecoder().decode(VideoResponse.self, from: data)
             } catch {
+                print("Failed to decode video response: \(error)")
                 throw APIServiceError.decodingFailed
             }
         } catch let error as APIServiceError {

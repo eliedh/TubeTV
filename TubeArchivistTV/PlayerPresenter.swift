@@ -10,49 +10,38 @@ import AVKit
 import UIKit
 import AVFoundation
 
+extension Notification.Name {
+    /// Posted with the video ID as `object` when the full-screen player is dismissed
+    static let playerDidClose = Notification.Name("TubeTVPlayerDidClose")
+}
+
 enum PlayerPresenter {
-    /// Presents a full-screen video player for the given video
+    /// Presents a full-screen video player for the given video, preferring a downloaded copy
     static func present(video: Video) {
+        if let videoID = video.canonicalVideoID,
+           let localURL = DownloadManager.shared.localURL(for: videoID) {
+            presentLocal(video: video, url: localURL)
+            return
+        }
+
         guard let url = URL(string: video.derivedURLString) else {
             print("Invalid video URL: \(video.derivedURLString)")
             return
         }
-        
-        guard let topVC = topViewController() else {
-            print("Unable to find top view controller")
-            return
-        }
-
-        // Configure audio session to play sound even when device is on silent
-        #if os(iOS)
-        configureAudioSession()
-        #endif
 
         let options = [
             "AVURLAssetHTTPHeaderFieldsKey": ["Authorization": Configuration.current.authorizationValue]
         ]
         let asset = AVURLAsset(url: url, options: options)
-        let item = AVPlayerItem(asset: asset)
-        let player = AVPlayer(playerItem: item)
-
-        let controller = SkippingPlayerViewController()
-        controller.watchedVideoID = video.canonicalVideoID
-        controller.initialPlaybackPosition = video.position
-        controller.nowPlayingTitle = video.title
-        if let thumb = video.derivedThumbnailURLString, let url = URL(string: thumb) {
-            controller.nowPlayingArtworkURL = url
-        }
-        controller.player = player
-        controller.showsPlaybackControls = true
-        controller.modalPresentationStyle = .fullScreen
-
-        player.play()
-
-        topVC.present(controller, animated: true)
+        presentPlayer(for: video, item: AVPlayerItem(asset: asset))
     }
     
     /// Presents a full-screen video player for a locally stored video
     static func presentLocal(video: Video, url: URL) {
+        presentPlayer(for: video, item: AVPlayerItem(url: url))
+    }
+
+    private static func presentPlayer(for video: Video, item: AVPlayerItem) {
         guard let topVC = topViewController() else {
             print("Unable to find top view controller")
             return
@@ -63,14 +52,17 @@ enum PlayerPresenter {
         configureAudioSession()
         #endif
 
-        let player = AVPlayer(url: url)
+        let player = AVPlayer(playerItem: item)
 
         let controller = SkippingPlayerViewController()
         controller.watchedVideoID = video.canonicalVideoID
-        controller.initialPlaybackPosition = video.position
+        controller.initialPlaybackPosition = PlaybackStateStore.shared.resumePosition(for: video)
         controller.nowPlayingTitle = video.title
-        if let thumb = video.derivedThumbnailURLString, let artURL = URL(string: thumb) {
-            controller.nowPlayingArtworkURL = artURL
+        if let videoID = video.canonicalVideoID,
+           let localThumbnail = DownloadManager.shared.localThumbnailURL(for: videoID) {
+            controller.nowPlayingArtworkURL = localThumbnail
+        } else {
+            controller.nowPlayingArtworkURL = video.thumbnailURL
         }
         controller.player = player
         controller.showsPlaybackControls = true
