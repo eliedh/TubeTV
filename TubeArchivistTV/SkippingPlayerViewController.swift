@@ -24,15 +24,49 @@ final class SkippingPlayerViewController: AVPlayerViewController {
     var watchedVideoID: String?
     var initialPlaybackPosition: Double?
     
-    // Playback speed settings, shown in the system player's own speed menu
+    // Playback speed settings
     private let playbackSpeeds: [Float] = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0]
+    /// Speed chosen in the speed menu, re-applied when playback resumes
+    private var currentSpeed: Float = 1.0
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        #if os(tvOS)
+        // tvOS: custom transport bar menu. Setting AVPlayerViewController.speeds on tvOS
+        // coincided with video rendering black (audio only), so tvOS keeps the menu that worked.
+        transportBarCustomMenuItems = [createSpeedMenu()]
+        #else
+        // iOS: the system player's built-in speed menu
         speeds = playbackSpeeds.map { rate in
             AVPlaybackSpeed(rate: rate, localizedName: rate == 1 ? "Normal" : "\(rate)×")
         }
+        #endif
     }
+
+    #if os(tvOS)
+    private func createSpeedMenu() -> UIMenu {
+        let speedActions = playbackSpeeds.map { speed -> UIAction in
+            let isCurrentSpeed = speed == currentSpeed
+            return UIAction(
+                title: "\(speed)×",
+                image: isCurrentSpeed ? UIImage(systemName: "checkmark") : nil,
+                state: isCurrentSpeed ? .on : .off
+            ) { [weak self] _ in
+                self?.setPlaybackSpeed(speed)
+            }
+        }
+        return UIMenu(title: "Speed", image: UIImage(systemName: "speedometer"), children: speedActions)
+    }
+
+    private func setPlaybackSpeed(_ speed: Float) {
+        currentSpeed = speed
+        if let player, player.rate != 0 {
+            player.rate = speed
+        }
+        // Recreate the menu to update checkmarks
+        transportBarCustomMenuItems = [createSpeedMenu()]
+    }
+    #endif
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
@@ -75,7 +109,11 @@ final class SkippingPlayerViewController: AVPlayerViewController {
     /// when resuming from Lock Screen controls or after an interruption.
     private func resumePlayback() {
         guard let player else { return }
-        player.playImmediately(atRate: selectedSpeed?.rate ?? 1)
+        #if os(tvOS)
+        player.playImmediately(atRate: currentSpeed)
+        #else
+        player.playImmediately(atRate: selectedSpeed?.rate ?? currentSpeed)
+        #endif
     }
 
     // MARK: - Watch Progress Tracking

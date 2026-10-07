@@ -122,11 +122,10 @@ Settings are persisted between app sessions and can be changed anytime from the 
 
 ### Bundle identifier & App Group
 
-All identifiers derive from one project-level build setting, `APP_BUNDLE_IDENTIFIER` (default `edh.TubeArchivistTV`):
+Identifiers come from two project-level build settings:
 
-- App: `$(APP_BUNDLE_IDENTIFIER)`
-- Top Shelf extension: `$(APP_BUNDLE_IDENTIFIER).TopShelf` (must be prefixed with the app's ID)
-- App Group shared by both: `group.$(APP_BUNDLE_IDENTIFIER)`
+- `APP_BUNDLE_IDENTIFIER` (default `edh.TubeTV`): the app is `$(APP_BUNDLE_IDENTIFIER)`, the Top Shelf extension `$(APP_BUNDLE_IDENTIFIER).TopShelf` (must be prefixed with the app's ID), tests `$(APP_BUNDLE_IDENTIFIER)Tests`
+- `APP_GROUP_IDENTIFIER` (default `group.edh.TubeArchivistTV`): the App Group shared by both, used by the entitlements and the code
 
 To use your own identifier, change `APP_BUNDLE_IDENTIFIER` under the **project's** Build Settings (not the target's "Bundle Identifier" field, which would replace the reference with a fixed value). With automatic signing, Xcode registers the App Group for your team on the first device build.
 
