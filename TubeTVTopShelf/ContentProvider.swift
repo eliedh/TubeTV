@@ -2,7 +2,7 @@
 //  ContentProvider.swift
 //  TubeTVTopShelf
 //
-//  Shows "Continue Watching" and "Recently Added" rows on the Apple TV Top Shelf.
+//  Shows "Continue Watching" and "Recently Added" rows of unwatched videos on the Apple TV Top Shelf.
 //  Shares Video.swift and Configuration.swift with the app; server settings come
 //  from the App Group defaults the app writes.
 //
@@ -21,7 +21,7 @@ final class ContentProvider: TVTopShelfContentProvider {
 
     private func makeContent() async -> (any TVTopShelfContent)? {
         guard Configuration.current.isComplete,
-              let url = Configuration.videoURL(page: 1, unwatchedOnly: false, sortByDownloaded: true) else {
+              let url = Configuration.videoURL(page: 1, unwatchedOnly: true, sortByDownloaded: true) else {
             return nil
         }
 
@@ -31,8 +31,10 @@ final class ContentProvider: TVTopShelfContentProvider {
                   (200...299).contains(httpResponse.statusCode) else { return nil }
             let videos = try JSONDecoder().decode(VideoResponse.self, from: data).data
 
+            // Only unwatched videos are fetched; started ones go in Continue Watching, the rest in
+            // Recently Added, so a video never appears in both rows
             let continueWatching = Array(videos.filter { $0.isPartiallyWatched }.prefix(maxItemsPerSection))
-            let recentlyAdded = Array(videos.prefix(maxItemsPerSection))
+            let recentlyAdded = Array(videos.filter { !$0.isPartiallyWatched && !$0.watched }.prefix(maxItemsPerSection))
             let imageURLs = await cacheThumbnails(for: continueWatching + recentlyAdded)
 
             var sections: [TVTopShelfItemCollection<TVTopShelfSectionedItem>] = []

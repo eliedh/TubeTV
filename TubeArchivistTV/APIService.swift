@@ -119,14 +119,22 @@ class APIService: ObservableObject {
     /// Re-fetches one video after playback so its watched state and progress are current,
     /// without reloading (and losing the scroll position of) the whole list
     func refreshVideo(videoID: String) async {
-        guard let index = videos.firstIndex(where: { $0.canonicalVideoID == videoID }) else { return }
-
         // Show what we know locally right away (works offline too)
-        videos[index] = PlaybackStateStore.shared.applyLocalState(to: videos[index])
+        if let index = videos.firstIndex(where: { $0.canonicalVideoID == videoID }) {
+            videos[index] = PlaybackStateStore.shared.applyLocalState(to: videos[index])
+        }
 
         await VideoProgressSync.shared.flushPending()
         await WatchedStateSync.shared.flushPending()
-        guard var updated = try? await Self.fetchVideo(videoID: videoID) else { return }
+
+        #if os(tvOS)
+        // Watched state / progress changed (also for videos started from the Top Shelf that
+        // aren't in the loaded list): let the Top Shelf rows update
+        TVTopShelfContentProvider.topShelfContentDidChange()
+        #endif
+
+        guard videos.contains(where: { $0.canonicalVideoID == videoID }),
+              var updated = try? await Self.fetchVideo(videoID: videoID) else { return }
         // A progress sync may still be in flight; local state from this session wins
         updated = PlaybackStateStore.shared.applyLocalState(to: updated)
 

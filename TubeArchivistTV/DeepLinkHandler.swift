@@ -17,6 +17,13 @@ enum DeepLinkHandler {
         Task {
             do {
                 let video = try await APIService.fetchVideo(videoID: videoID)
+                // The link arrives while the app is still launching / coming to the foreground;
+                // wait (up to ~5s) until a player can actually be presented
+                var attempts = 0
+                while !PlayerPresenter.canPresentNow && attempts < 50 {
+                    try await Task.sleep(nanoseconds: 100_000_000)
+                    attempts += 1
+                }
                 PlayerPresenter.present(video: video)
             } catch {
                 print("Couldn't open video \(videoID): \(error.localizedDescription)")
