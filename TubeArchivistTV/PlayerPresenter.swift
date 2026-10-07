@@ -41,9 +41,26 @@ enum PlayerPresenter {
         presentPlayer(for: video, item: AVPlayerItem(url: url))
     }
 
+    /// True once the app's window is fully active and not mid-transition, i.e. a player can be
+    /// presented right now. Deep links arrive while the app is still coming to the foreground.
+    static var canPresentNow: Bool {
+        guard let root = rootViewController(activeOnly: true),
+              let top = topViewController(base: root) else { return false }
+        return !top.isBeingPresented && !top.isBeingDismissed
+    }
+
     private static func presentPlayer(for video: Video, item: AVPlayerItem) {
         guard let topVC = topViewController() else {
             print("Unable to find top view controller")
+            return
+        }
+
+        // Opening another video (e.g. from the Top Shelf) while one is playing: replace it
+        // instead of stacking a second player on top
+        if topVC is SkippingPlayerViewController, let presenter = topVC.presentingViewController {
+            presenter.dismiss(animated: false) {
+                presentPlayer(for: video, item: item)
+            }
             return
         }
 
@@ -74,13 +91,17 @@ enum PlayerPresenter {
     }
 
     /// Finds the topmost view controller in the hierarchy
-    private static func topViewController(base: UIViewController? = {
-        let scenes = UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .filter { $0.activationState == .foregroundActive }
-        let keyWindow = scenes.first?.windows.first { $0.isKeyWindow } ?? scenes.first?.windows.first
+    /// Root view controller of the foreground window. Prefers an active scene but falls back to
+    /// one that is still becoming active (as when the app is opened from a link).
+    private static func rootViewController(activeOnly: Bool = false) -> UIViewController? {
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        let scene = scenes.first { $0.activationState == .foregroundActive }
+            ?? (activeOnly ? nil : scenes.first { $0.activationState == .foregroundInactive })
+        let keyWindow = scene?.windows.first { $0.isKeyWindow } ?? scene?.windows.first
         return keyWindow?.rootViewController
-    }()) -> UIViewController? {
+    }
+
+    private static func topViewController(base: UIViewController? = rootViewController()) -> UIViewController? {
         if let nav = base as? UINavigationController {
             return topViewController(base: nav.visibleViewController)
         }
