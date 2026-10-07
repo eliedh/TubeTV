@@ -120,9 +120,15 @@ This is a lightweight SwiftUI app developed primarily using AI code generation t
 
 Settings are persisted between app sessions and can be changed anytime from the settings button (gear icon) in the navigation bar.
 
-### App Group (for the Top Shelf extension)
+### Bundle identifier & App Group
 
-The app and its Top Shelf extension share server settings through the App Group `group.edh.TubeArchivistTV` (see `Entitlements/`). With automatic signing Xcode registers it for your team on the first device build. If you use a different bundle identifier or team, change the group ID in both entitlements files and in `Configuration.appGroupID`.
+All identifiers derive from one project-level build setting, `APP_BUNDLE_IDENTIFIER` (default `edh.TubeArchivistTV`):
+
+- App: `$(APP_BUNDLE_IDENTIFIER)`
+- Top Shelf extension: `$(APP_BUNDLE_IDENTIFIER).TopShelf` (must be prefixed with the app's ID)
+- App Group shared by both: `group.$(APP_BUNDLE_IDENTIFIER)`
+
+To use your own identifier, change `APP_BUNDLE_IDENTIFIER` under the **project's** Build Settings (not the target's "Bundle Identifier" field, which would replace the reference with a fixed value). With automatic signing, Xcode registers the App Group for your team on the first device build.
 
 ## Tests
 

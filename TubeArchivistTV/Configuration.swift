@@ -23,8 +23,16 @@ struct AppConfigurationSnapshot {
 enum Configuration {
     // MARK: - Shared Storage
 
-    /// App Group shared with the Top Shelf extension so it can reach the server too
-    static let appGroupID = "group.edh.TubeArchivistTV"
+    /// App Group shared with the Top Shelf extension so it can reach the server too.
+    /// Comes from the APP_GROUP_IDENTIFIER build setting (via Info.plist), so changing
+    /// APP_BUNDLE_IDENTIFIER in the project updates it everywhere.
+    static let appGroupID: String = {
+        if let identifier = Bundle.main.object(forInfoDictionaryKey: "TubeTVAppGroupIdentifier") as? String,
+           !identifier.isEmpty, !identifier.contains("$(") {
+            return identifier
+        }
+        return "group.edh.TubeArchivistTV"
+    }()
 
     /// Settings storage shared between the app and its extensions
     static let sharedDefaults: UserDefaults = UserDefaults(suiteName: appGroupID) ?? .standard
